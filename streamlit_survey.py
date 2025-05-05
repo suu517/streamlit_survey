@@ -1,957 +1,700 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
-import io
+import plotly.express as px
+import plotly.graph_objects as go
 from datetime import datetime
+import os
+import numpy as np
 
 # ページ設定
 st.set_page_config(
-    page_title="採用力可視化アンケート",
-    page_icon="📝",
+    page_title="従業員満足度・期待度調査",
+    page_icon="📊",
     layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# シンプルなカスタムCSS
-st.markdown("""
-<style>
-    /* 全体のフォント設定 */
-    html, body, [class*="css"] {
-        font-family: 'Helvetica', 'Arial', sans-serif;
-    }
-    
-    /* ヘッダーのスタイル */
-    h1, h2, h3 {
-        color: #1E293B;
-        margin-bottom: 1rem;
-    }
-    
-    /* セクションの区切り */
-    .section {
-        margin-bottom: 2rem;
-        padding-bottom: 1rem;
-        border-bottom: 1px solid #eee;
-    }
-    
-    /* 必須項目のマーク */
-    .required {
-        color: red;
-        margin-left: 5px;
-    }
-    
-    /* 送信ボタン */
-    .submit-button {
-        background-color: #1E293B;
-        color: white;
-        padding: 10px 20px;
-        border-radius: 5px;
-        border: none;
-        cursor: pointer;
-        font-size: 16px;
-    }
-    
-    /* 評価スケールの説明 */
-    .scale-description {
-        font-size: 0.8rem;
-        color: #6c757d;
-        margin-bottom: 1rem;
-    }
-    
-    /* 期待度と満足度のラベル */
-    .expectation-label {
-        color: #4285F4;
-        font-weight: bold;
-    }
-    
-    .satisfaction-label {
-        color: #34A853;
-        font-weight: bold;
-    }
-    
-    /* 項目のカード */
-    .item-card {
-        background-color: #f8f9fa;
-        border-radius: 5px;
-        padding: 15px;
-        margin-bottom: 15px;
-    }
-</style>
-""", unsafe_allow_html=True)
-
 # セッション状態の初期化
+if 'page' not in st.session_state:
+    st.session_state.page = 'intro'
 if 'responses' not in st.session_state:
     st.session_state.responses = []
+if 'current_data' not in st.session_state:
+    st.session_state.current_data = {}
 
-if 'current_page' not in st.session_state:
-    st.session_state.current_page = 1
+# データファイルのパス
+DATA_FILE = "employee_survey_data.csv"
 
-if 'form_submitted' not in st.session_state:
-    st.session_state.form_submitted = False
+# データファイルの読み込み
+def load_data():
+    if os.path.exists(DATA_FILE):
+        return pd.read_csv(DATA_FILE)
+    else:
+        return pd.DataFrame()
 
-# 回答をセッションに保存する関数
-def save_response(response_data):
-    # タイムスタンプを追加
-    response_data['回答日時'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    
-    # セッションに保存
-    st.session_state.responses.append(response_data)
-    st.session_state.form_submitted = True
+# データの保存
+def save_data(data):
+    if os.path.exists(DATA_FILE):
+        existing_data = pd.read_csv(DATA_FILE)
+        updated_data = pd.concat([existing_data, data], ignore_index=True)
+        updated_data.to_csv(DATA_FILE, index=False)
+    else:
+        data.to_csv(DATA_FILE, index=False)
 
-# 回答をExcelに変換する関数
-def convert_to_excel():
-    if not st.session_state.responses:
-        return None
-    
-    # 回答をDataFrameに変換
-    df = pd.DataFrame(st.session_state.responses)
-    
-    # Excelファイルとして保存
-    excel_buffer = io.BytesIO()
-    df.to_excel(excel_buffer, index=False, engine='openpyxl')
-    excel_buffer.seek(0)
-    
-    return excel_buffer
+# 5段階評価のオプション
+satisfaction_options = {
+    1: "非常に不満",
+    2: "不満",
+    3: "どちらでもない",
+    4: "満足",
+    5: "非常に満足"
+}
 
-# アンケートの説明ページ
-def show_introduction():
-    st.title("採用力可視化アンケート")
-    
+expectation_options = {
+    1: "全く期待していない",
+    2: "あまり期待していない",
+    3: "どちらでもない",
+    4: "やや期待している",
+    5: "非常に期待している"
+}
+
+# 質問リスト
+questions = {
+    "A. あなたの仕事について": {
+        "勤務時間": [
+            "現在の残業時間について、どのように感じていますか？",
+            "残業代金について、どのように感じていますか？"
+        ],
+        "仕事量": [
+            "現在の仕事量について、どのように感じていますか？",
+            "現在の仕事による身体的な疲労度はどの程度ですか？",
+            "現在の仕事による精神的な疲労度はどの程度ですか？"
+        ],
+        "仕事内容": [
+            "今の仕事に誇りやプライドを感じますか？",
+            "仕事における裁量の大きさについて、どのように感じていますか？",
+            "今の仕事にやりがいを感じますか？",
+            "今の仕事は社会に貢献していると感じますか？",
+            "今の仕事を通じて成長を実感していますか？",
+            "今の仕事で達成感を感じることはありますか？",
+            "担当している仕事の規模の大きさをどのように感じていますか？",
+            "今の仕事で自分の強みを発揮できていると感じますか？",
+            "今の仕事を通じて専門的なスキルや知識を獲得できていると感じますか？",
+            "今の仕事は汎用的なスキルが身につくと思いますか？",
+            "今の仕事はあなたの将来のキャリアの方向性と合っていますか？"
+        ],
+        "休日休暇": [
+            "現在の休日休暇の取得状況について、十分に取れていると感じますか？",
+            "有給休暇は十分に利用できていますか？"
+        ],
+        "勤務体系": [
+            "現在の働き方（リモートワーク、時短勤務、シフト制など）について、どのように感じていますか？"
+        ],
+        "昇給昇格": [
+            "昇給や昇格のスピード感について、どのように感じていますか？",
+            "仕事の内容に対して、しっかりと評価されていると感じますか？",
+            "評価制度や体制は透明性・明確性があると思いますか？"
+        ],
+        "人間関係": [
+            "現在の職場の人間関係は良好だと思いますか？",
+            "これまでにセクハラやパワハラと感じたことはありますか？"
+        ],
+        "働く外的環境（場所）": [
+            "現在の勤務地はあなたにとって適切な距離だと感じますか？",
+            "働いているオフィスや自宅の環境は十分に整っていると感じますか？"
+        ],
+        "成長実感": [
+            "仕事を通じて成長を実感していますか？",
+            "知識やスキルを獲得できていると感じますか？",
+            "得た知識や経験を職場で発揮できていると感じますか？"
+        ],
+        "目標やノルマ": [
+            "現在の目標やノルマは達成可能だと思いますか？"
+        ],
+        "将来のキャリア": [
+            "将来のキャリアパスについて、ロールモデルとなるような人はいますか？",
+            "会社はあなたの将来のキャリアパスをしっかりと設計してくれていると感じますか？"
+        ]
+    },
+    "B. あなたの会社について": {
+        "会社の事業基盤": [
+            "会社の事業基盤について、安心感を持つことができますか？",
+            "会社のブランド力について、どの程度感じますか？"
+        ],
+        "会社のビジョン・戦略・戦術などの将来性": [
+            "会社のビジョンや将来性に対して、期待や信頼を持つことができますか？",
+            "会社の現状の経営戦略や戦術について、信頼・期待を持つことができますか？"
+        ],
+        "会社の事業内容": [
+            "会社の事業内容は社会の役に立っている、または貢献していると感じますか？",
+            "会社の事業以外の取り組みで、社会の役に立っている、または貢献していると感じますか？",
+            "会社の事業内容は同業他社と比較してどの程度優位性があると感じますか？",
+            "会社の事業内容は同業他社と比較してどの程度独自性があると感じますか？",
+            "会社の事業内容は同業他社と比較してどの程度革新性（イノベーション性）があると感じますか？"
+        ],
+        "会社の社内配置": [
+            "会社の転勤体制はあなたの希望に沿ったものだと感じますか？",
+            "会社の異動体制（自己公募制度など）はあなたの希望に沿ったものだと感じますか？"
+        ],
+        "会社の文化・社風": [
+            "会社の社風や文化はあなたの価値観や考え方と共感できますか？",
+            "会社の風通しの良さについて、どの程度感じますか？",
+            "社内で教え合ったり、学び合ったりする文化や風土があると感じますか？"
+        ],
+        "会社の福利厚生": [
+            "会社の福利厚生について、あなたの満足度を教えてください。"
+        ],
+        "会社の教育体制": [
+            "会社の教育研修制度は充実していると感じますか？"
+        ],
+        "会社の女性の働きやすさ": [
+            "社内の女性の働きやすさについて、どの程度感じますか？（男性の方もご意見をお聞かせください）"
+        ],
+        "会社の法令遵守な体制": [
+            "社内の法令遵守の体制について、どの程度感じますか？"
+        ]
+    },
+    "C. 総合評価": {
+        "総合評価": [
+            "総合満足度",
+            "この会社にどれぐらい長く勤めいたいと感じているのか",
+            "自分は現在の会社もしくは部署でどれぐらい活躍できていると感じるのか",
+            "親しい家族や友人にどの程度自社を勧めたいのか（NPS）"
+        ]
+    }
+}
+
+# イントロページ
+def show_intro():
+    st.title("従業員満足度・期待度調査")
     st.markdown("""
-    このアンケートは、当社の採用力と従業員満足度を向上させるために実施しています。
-    皆様の率直なご意見をお聞かせください。回答は匿名で処理され、集計結果のみが分析に使用されます。
+    このアンケートは、従業員の皆様の満足度と期待度を調査し、より良い職場環境づくりに役立てることを目的としています。
     
-    ### アンケートの構成
-    1. 基本情報
-    2. 総合評価
-    3. 勤務・仕事に関する評価
-    4. キャリア・成長に関する評価
-    5. 環境・人間関係に関する評価
-    6. 会社・組織に関する評価
-    7. 自由記述
+    各質問について、**現在の満足度**と**今後の期待度**の両方をお答えいただきます。
+    回答は匿名で処理され、個人が特定されることはありません。
     
-    各項目について、「期待度」（あなたがどの程度重要と考えているか）と「満足度」（現状にどの程度満足しているか）の両方をお聞きします。
-    
-    所要時間は約10分です。最後までご回答いただけますようお願いいたします。
+    アンケートの所要時間は約15分です。ご協力をお願いいたします。
     """)
     
-    if st.button("アンケートを開始する", key="start_survey"):
-        st.session_state.current_page = 2
-        st.rerun()
-
-# 基本情報入力ページ
-def show_basic_info():
-    st.title("基本情報")
+    # 基本情報入力
+    st.header("基本情報")
     
-    with st.form("basic_info_form"):
-        st.markdown('<span class="required">*</span> は必須項目です', unsafe_allow_html=True)
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            department = st.selectbox(
-                "部署 <span class='required'>*</span>",
-                ["営業部", "マーケティング部", "エンジニアリング部", "人事部", "経理部", "その他"],
-                index=None,
-                placeholder="選択してください",
-                key="department",
-                help="所属している部署を選択してください",
-                format_func=lambda x: x,
-                label_visibility="visible",
-                disabled=False,
-                unsafe_allow_html=True
-            )
-            
-            position = st.selectbox(
-                "役職 <span class='required'>*</span>",
-                ["マネージャー", "シニア", "ミッド", "ジュニア", "その他"],
-                index=None,
-                placeholder="選択してください",
-                key="position",
-                help="現在の役職を選択してください",
-                format_func=lambda x: x,
-                label_visibility="visible",
-                disabled=False,
-                unsafe_allow_html=True
-            )
-        
-        with col2:
-            age_group = st.selectbox(
-                "年齢層 <span class='required'>*</span>",
-                ["20代", "30代", "40代", "50代", "60代以上"],
-                index=None,
-                placeholder="選択してください",
-                key="age_group",
-                help="年齢層を選択してください",
-                format_func=lambda x: x,
-                label_visibility="visible",
-                disabled=False,
-                unsafe_allow_html=True
-            )
-            
-            years_of_service = st.slider(
-                "勤続年数 <span class='required'>*</span>",
-                min_value=0.5,
-                max_value=30.0,
-                value=3.0,
-                step=0.5,
-                format="%.1f年",
-                key="years_of_service",
-                help="現在の会社での勤続年数を選択してください",
-                label_visibility="visible",
-                disabled=False,
-                unsafe_allow_html=True
-            )
-        
-        submitted = st.form_submit_button("次へ")
-        
-        if submitted:
-            if not department or not position or not age_group:
-                st.error("必須項目をすべて入力してください")
-            else:
-                # 回答を一時保存
-                st.session_state.temp_response = {
-                    "部署": department,
-                    "役職": position,
-                    "年齢層": age_group,
-                    "勤続年数": years_of_service
-                }
-                
-                # 次のページへ
-                st.session_state.current_page = 3
-                st.rerun()
-
-# 総合評価ページ
-def show_overall_evaluation():
-    st.title("総合評価")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.session_state.current_data['department'] = st.selectbox(
+            "部署",
+            ["営業部", "マーケティング部", "開発部", "人事部", "経理部", "総務部", "その他"]
+        )
+        st.session_state.current_data['position'] = st.selectbox(
+            "役職",
+            ["一般社員", "主任", "係長", "課長", "部長", "役員", "その他"]
+        )
     
-    with st.form("overall_evaluation_form"):
-        st.markdown("""
-        <div class="scale-description">
-            <span class="expectation-label">期待度</span>: 1(全く重要でない) 〜 5(非常に重要)<br>
-            <span class="satisfaction-label">満足度</span>: 1(非常に不満) 〜 5(非常に満足)
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # NPS
-        st.markdown('<div class="item-card">', unsafe_allow_html=True)
-        st.subheader("会社の推奨度（NPS）")
-        st.write("この会社を友人や知人に勧める可能性はどのくらいですか？")
-        nps = st.slider(
-            "推奨度",
+    with col2:
+        st.session_state.current_data['years_of_service'] = st.slider(
+            "勤続年数",
             min_value=0,
-            max_value=10,
-            value=7,
-            step=1,
-            format="%d",
-            key="nps",
-            help="0（全く勧めない）から10（強く勧める）の間で評価してください"
+            max_value=40,
+            value=3,
+            step=1
         )
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        # 総合満足度
-        st.markdown('<div class="item-card">', unsafe_allow_html=True)
-        st.subheader("総合満足度")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown('<span class="expectation-label">期待度</span>: 会社全体に対してどの程度の期待を持っていますか？', unsafe_allow_html=True)
-            overall_expectation = st.slider(
-                "総合満足度の期待度",
-                min_value=1,
-                max_value=5,
-                value=4,
-                step=1,
-                format="%d",
-                key="overall_expectation"
-            )
-        
-        with col2:
-            st.markdown('<span class="satisfaction-label">満足度</span>: 現在の会社全体に対する満足度はどの程度ですか？', unsafe_allow_html=True)
-            overall_satisfaction = st.slider(
-                "総合満足度の満足度",
-                min_value=1,
-                max_value=5,
-                value=3,
-                step=1,
-                format="%d",
-                key="overall_satisfaction"
-            )
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        # 活躍度合い
-        st.markdown('<div class="item-card">', unsafe_allow_html=True)
-        st.subheader("活躍度合い")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown('<span class="expectation-label">期待度</span>: 自分の能力を発揮することをどの程度重要と考えていますか？', unsafe_allow_html=True)
-            achievement_expectation = st.slider(
-                "活躍度合いの期待度",
-                min_value=1,
-                max_value=5,
-                value=4,
-                step=1,
-                format="%d",
-                key="achievement_expectation"
-            )
-        
-        with col2:
-            st.markdown('<span class="satisfaction-label">満足度</span>: 現在、自分の能力をどの程度発揮できていると感じますか？', unsafe_allow_html=True)
-            achievement_satisfaction = st.slider(
-                "活躍度合いの満足度",
-                min_value=1,
-                max_value=5,
-                value=3,
-                step=1,
-                format="%d",
-                key="achievement_satisfaction"
-            )
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        # 勤続意向
-        st.markdown('<div class="item-card">', unsafe_allow_html=True)
-        st.subheader("勤続意向")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown('<span class="expectation-label">期待度</span>: 長く働き続けることをどの程度重要と考えていますか？', unsafe_allow_html=True)
-            stay_expectation = st.slider(
-                "勤続意向の期待度",
-                min_value=1,
-                max_value=5,
-                value=4,
-                step=1,
-                format="%d",
-                key="stay_expectation"
-            )
-        
-        with col2:
-            st.markdown('<span class="satisfaction-label">満足度</span>: 今後もこの会社で働き続けたいと思いますか？', unsafe_allow_html=True)
-            stay_satisfaction = st.slider(
-                "勤続意向の満足度",
-                min_value=1,
-                max_value=5,
-                value=3,
-                step=1,
-                format="%d",
-                key="stay_satisfaction"
-            )
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        submitted = st.form_submit_button("次へ")
-        
-        if submitted:
-            # 前のページの回答と結合
-            st.session_state.temp_response.update({
-                "NPS": nps,
-                "総合満足度_期待度": overall_expectation,
-                "総合満足度_満足度": overall_satisfaction,
-                "活躍度合い_期待度": achievement_expectation,
-                "活躍度合い_満足度": achievement_satisfaction,
-                "勤続意向_期待度": stay_expectation,
-                "勤続意向_満足度": stay_satisfaction
-            })
-            
-            # 次のページへ
-            st.session_state.current_page = 4
-            st.rerun()
-
-# 勤務・仕事に関する評価ページ
-def show_work_evaluation():
-    st.title("勤務・仕事に関する評価")
-    
-    with st.form("work_evaluation_form"):
-        st.markdown("""
-        <div class="scale-description">
-            <span class="expectation-label">期待度</span>: 1(全く重要でない) 〜 5(非常に重要)<br>
-            <span class="satisfaction-label">満足度</span>: 1(非常に不満) 〜 5(非常に満足)
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # 勤務時間
-        st.markdown('<div class="item-card">', unsafe_allow_html=True)
-        st.subheader("勤務時間")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown('<span class="expectation-label">期待度</span>: 勤務時間の柔軟性や適切さをどの程度重要と考えていますか？', unsafe_allow_html=True)
-            work_time_expectation = st.slider(
-                "勤務時間の期待度",
-                min_value=1,
-                max_value=5,
-                value=4,
-                step=1,
-                format="%d",
-                key="work_time_expectation"
-            )
-        
-        with col2:
-            st.markdown('<span class="satisfaction-label">満足度</span>: 現在の勤務時間に対する満足度はどの程度ですか？', unsafe_allow_html=True)
-            work_time_satisfaction = st.slider(
-                "勤務時間の満足度",
-                min_value=1,
-                max_value=5,
-                value=3,
-                step=1,
-                format="%d",
-                key="work_time_satisfaction"
-            )
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        # 仕事量
-        st.markdown('<div class="item-card">', unsafe_allow_html=True)
-        st.subheader("仕事量")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown('<span class="expectation-label">期待度</span>: 適切な仕事量をどの程度重要と考えていますか？', unsafe_allow_html=True)
-            workload_expectation = st.slider(
-                "仕事量の期待度",
-                min_value=1,
-                max_value=5,
-                value=4,
-                step=1,
-                format="%d",
-                key="workload_expectation"
-            )
-        
-        with col2:
-            st.markdown('<span class="satisfaction-label">満足度</span>: 現在の仕事量に対する満足度はどの程度ですか？', unsafe_allow_html=True)
-            workload_satisfaction = st.slider(
-                "仕事量の満足度",
-                min_value=1,
-                max_value=5,
-                value=3,
-                step=1,
-                format="%d",
-                key="workload_satisfaction"
-            )
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        # 仕事内容
-        st.markdown('<div class="item-card">', unsafe_allow_html=True)
-        st.subheader("仕事内容")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown('<span class="expectation-label">期待度</span>: やりがいのある仕事内容をどの程度重要と考えていますか？', unsafe_allow_html=True)
-            work_content_expectation = st.slider(
-                "仕事内容の期待度",
-                min_value=1,
-                max_value=5,
-                value=4,
-                step=1,
-                format="%d",
-                key="work_content_expectation"
-            )
-        
-        with col2:
-            st.markdown('<span class="satisfaction-label">満足度</span>: 現在の仕事内容に対する満足度はどの程度ですか？', unsafe_allow_html=True)
-            work_content_satisfaction = st.slider(
-                "仕事内容の満足度",
-                min_value=1,
-                max_value=5,
-                value=3,
-                step=1,
-                format="%d",
-                key="work_content_satisfaction"
-            )
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        submitted = st.form_submit_button("次へ")
-        
-        if submitted:
-            # 前のページの回答と結合
-            st.session_state.temp_response.update({
-                "勤務時間_期待度": work_time_expectation,
-                "勤務時間_満足度": work_time_satisfaction,
-                "仕事量_期待度": workload_expectation,
-                "仕事量_満足度": workload_satisfaction,
-                "仕事内容_期待度": work_content_expectation,
-                "仕事内容_満足度": work_content_satisfaction
-            })
-            
-            # 次のページへ
-            st.session_state.current_page = 5
-            st.rerun()
-
-# キャリア・成長に関する評価ページ
-def show_career_evaluation():
-    st.title("キャリア・成長に関する評価")
-    
-    with st.form("career_evaluation_form"):
-        st.markdown("""
-        <div class="scale-description">
-            <span class="expectation-label">期待度</span>: 1(全く重要でない) 〜 5(非常に重要)<br>
-            <span class="satisfaction-label">満足度</span>: 1(非常に不満) 〜 5(非常に満足)
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # 昇給昇格
-        st.markdown('<div class="item-card">', unsafe_allow_html=True)
-        st.subheader("昇給昇格")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown('<span class="expectation-label">期待度</span>: 昇給や昇格の機会をどの程度重要と考えていますか？', unsafe_allow_html=True)
-            promotion_expectation = st.slider(
-                "昇給昇格の期待度",
-                min_value=1,
-                max_value=5,
-                value=4,
-                step=1,
-                format="%d",
-                key="promotion_expectation"
-            )
-        
-        with col2:
-            st.markdown('<span class="satisfaction-label">満足度</span>: 現在の昇給や昇格の機会に対する満足度はどの程度ですか？', unsafe_allow_html=True)
-            promotion_satisfaction = st.slider(
-                "昇給昇格の満足度",
-                min_value=1,
-                max_value=5,
-                value=3,
-                step=1,
-                format="%d",
-                key="promotion_satisfaction"
-            )
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        # 成長実感
-        st.markdown('<div class="item-card">', unsafe_allow_html=True)
-        st.subheader("成長実感")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown('<span class="expectation-label">期待度</span>: 自身の成長を実感できることをどの程度重要と考えていますか？', unsafe_allow_html=True)
-            growth_expectation = st.slider(
-                "成長実感の期待度",
-                min_value=1,
-                max_value=5,
-                value=4,
-                step=1,
-                format="%d",
-                key="growth_expectation"
-            )
-        
-        with col2:
-            st.markdown('<span class="satisfaction-label">満足度</span>: 現在、自身の成長をどの程度実感できていますか？', unsafe_allow_html=True)
-            growth_satisfaction = st.slider(
-                "成長実感の満足度",
-                min_value=1,
-                max_value=5,
-                value=3,
-                step=1,
-                format="%d",
-                key="growth_satisfaction"
-            )
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        # 将来キャリア
-        st.markdown('<div class="item-card">', unsafe_allow_html=True)
-        st.subheader("将来キャリア")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown('<span class="expectation-label">期待度</span>: 将来のキャリアパスが明確であることをどの程度重要と考えていますか？', unsafe_allow_html=True)
-            career_expectation = st.slider(
-                "将来キャリアの期待度",
-                min_value=1,
-                max_value=5,
-                value=4,
-                step=1,
-                format="%d",
-                key="career_expectation"
-            )
-        
-        with col2:
-            st.markdown('<span class="satisfaction-label">満足度</span>: 現在の将来キャリアの見通しに対する満足度はどの程度ですか？', unsafe_allow_html=True)
-            career_satisfaction = st.slider(
-                "将来キャリアの満足度",
-                min_value=1,
-                max_value=5,
-                value=3,
-                step=1,
-                format="%d",
-                key="career_satisfaction"
-            )
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        submitted = st.form_submit_button("次へ")
-        
-        if submitted:
-            # 前のページの回答と結合
-            st.session_state.temp_response.update({
-                "昇給昇格_期待度": promotion_expectation,
-                "昇給昇格_満足度": promotion_satisfaction,
-                "成長実感_期待度": growth_expectation,
-                "成長実感_満足度": growth_satisfaction,
-                "将来キャリア_期待度": career_expectation,
-                "将来キャリア_満足度": career_satisfaction
-            })
-            
-            # 次のページへ
-            st.session_state.current_page = 6
-            st.rerun()
-
-# 環境・人間関係に関する評価ページ
-def show_environment_evaluation():
-    st.title("環境・人間関係に関する評価")
-    
-    with st.form("environment_evaluation_form"):
-        st.markdown("""
-        <div class="scale-description">
-            <span class="expectation-label">期待度</span>: 1(全く重要でない) 〜 5(非常に重要)<br>
-            <span class="satisfaction-label">満足度</span>: 1(非常に不満) 〜 5(非常に満足)
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # 人間関係
-        st.markdown('<div class="item-card">', unsafe_allow_html=True)
-        st.subheader("人間関係")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown('<span class="expectation-label">期待度</span>: 良好な職場の人間関係をどの程度重要と考えていますか？', unsafe_allow_html=True)
-            relationship_expectation = st.slider(
-                "人間関係の期待度",
-                min_value=1,
-                max_value=5,
-                value=4,
-                step=1,
-                format="%d",
-                key="relationship_expectation"
-            )
-        
-        with col2:
-            st.markdown('<span class="satisfaction-label">満足度</span>: 現在の職場の人間関係に対する満足度はどの程度ですか？', unsafe_allow_html=True)
-            relationship_satisfaction = st.slider(
-                "人間関係の満足度",
-                min_value=1,
-                max_value=5,
-                value=3,
-                step=1,
-                format="%d",
-                key="relationship_satisfaction"
-            )
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        # 働く環境
-        st.markdown('<div class="item-card">', unsafe_allow_html=True)
-        st.subheader("働く環境")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown('<span class="expectation-label">期待度</span>: 快適な職場環境をどの程度重要と考えていますか？', unsafe_allow_html=True)
-            environment_expectation = st.slider(
-                "働く環境の期待度",
-                min_value=1,
-                max_value=5,
-                value=4,
-                step=1,
-                format="%d",
-                key="environment_expectation"
-            )
-        
-        with col2:
-            st.markdown('<span class="satisfaction-label">満足度</span>: 現在の職場環境に対する満足度はどの程度ですか？', unsafe_allow_html=True)
-            environment_satisfaction = st.slider(
-                "働く環境の満足度",
-                min_value=1,
-                max_value=5,
-                value=3,
-                step=1,
-                format="%d",
-                key="environment_satisfaction"
-            )
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        # 文化・社風
-        st.markdown('<div class="item-card">', unsafe_allow_html=True)
-        st.subheader("文化・社風")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown('<span class="expectation-label">期待度</span>: 良い会社文化や社風をどの程度重要と考えていますか？', unsafe_allow_html=True)
-            culture_expectation = st.slider(
-                "文化・社風の期待度",
-                min_value=1,
-                max_value=5,
-                value=4,
-                step=1,
-                format="%d",
-                key="culture_expectation"
-            )
-        
-        with col2:
-            st.markdown('<span class="satisfaction-label">満足度</span>: 現在の会社文化や社風に対する満足度はどの程度ですか？', unsafe_allow_html=True)
-            culture_satisfaction = st.slider(
-                "文化・社風の満足度",
-                min_value=1,
-                max_value=5,
-                value=3,
-                step=1,
-                format="%d",
-                key="culture_satisfaction"
-            )
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        submitted = st.form_submit_button("次へ")
-        
-        if submitted:
-            # 前のページの回答と結合
-            st.session_state.temp_response.update({
-                "人間関係_期待度": relationship_expectation,
-                "人間関係_満足度": relationship_satisfaction,
-                "働く環境_期待度": environment_expectation,
-                "働く環境_満足度": environment_satisfaction,
-                "文化・社風_期待度": culture_expectation,
-                "文化・社風_満足度": culture_satisfaction
-            })
-            
-            # 次のページへ
-            st.session_state.current_page = 7
-            st.rerun()
-
-# 会社・組織に関する評価ページ
-def show_company_evaluation():
-    st.title("会社・組織に関する評価")
-    
-    with st.form("company_evaluation_form"):
-        st.markdown("""
-        <div class="scale-description">
-            <span class="expectation-label">期待度</span>: 1(全く重要でない) 〜 5(非常に重要)<br>
-            <span class="satisfaction-label">満足度</span>: 1(非常に不満) 〜 5(非常に満足)
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # 事業基盤
-        st.markdown('<div class="item-card">', unsafe_allow_html=True)
-        st.subheader("事業基盤")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown('<span class="expectation-label">期待度</span>: 安定した事業基盤をどの程度重要と考えていますか？', unsafe_allow_html=True)
-            business_foundation_expectation = st.slider(
-                "事業基盤の期待度",
-                min_value=1,
-                max_value=5,
-                value=4,
-                step=1,
-                format="%d",
-                key="business_foundation_expectation"
-            )
-        
-        with col2:
-            st.markdown('<span class="satisfaction-label">満足度</span>: 現在の会社の事業基盤に対する満足度はどの程度ですか？', unsafe_allow_html=True)
-            business_foundation_satisfaction = st.slider(
-                "事業基盤の満足度",
-                min_value=1,
-                max_value=5,
-                value=3,
-                step=1,
-                format="%d",
-                key="business_foundation_satisfaction"
-            )
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        # ビジョン・戦略
-        st.markdown('<div class="item-card">', unsafe_allow_html=True)
-        st.subheader("ビジョン・戦略")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown('<span class="expectation-label">期待度</span>: 明確なビジョンや戦略をどの程度重要と考えていますか？', unsafe_allow_html=True)
-            vision_strategy_expectation = st.slider(
-                "ビジョン・戦略の期待度",
-                min_value=1,
-                max_value=5,
-                value=4,
-                step=1,
-                format="%d",
-                key="vision_strategy_expectation"
-            )
-        
-        with col2:
-            st.markdown('<span class="satisfaction-label">満足度</span>: 現在の会社のビジョンや戦略に対する満足度はどの程度ですか？', unsafe_allow_html=True)
-            vision_strategy_satisfaction = st.slider(
-                "ビジョン・戦略の満足度",
-                min_value=1,
-                max_value=5,
-                value=3,
-                step=1,
-                format="%d",
-                key="vision_strategy_satisfaction"
-            )
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        # 福利厚生
-        st.markdown('<div class="item-card">', unsafe_allow_html=True)
-        st.subheader("福利厚生")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown('<span class="expectation-label">期待度</span>: 充実した福利厚生をどの程度重要と考えていますか？', unsafe_allow_html=True)
-            benefits_expectation = st.slider(
-                "福利厚生の期待度",
-                min_value=1,
-                max_value=5,
-                value=4,
-                step=1,
-                format="%d",
-                key="benefits_expectation"
-            )
-        
-        with col2:
-            st.markdown('<span class="satisfaction-label">満足度</span>: 現在の福利厚生に対する満足度はどの程度ですか？', unsafe_allow_html=True)
-            benefits_satisfaction = st.slider(
-                "福利厚生の満足度",
-                min_value=1,
-                max_value=5,
-                value=3,
-                step=1,
-                format="%d",
-                key="benefits_satisfaction"
-            )
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        submitted = st.form_submit_button("次へ")
-        
-        if submitted:
-            # 前のページの回答と結合
-            st.session_state.temp_response.update({
-                "事業基盤_期待度": business_foundation_expectation,
-                "事業基盤_満足度": business_foundation_satisfaction,
-                "ビジョン・戦略_期待度": vision_strategy_expectation,
-                "ビジョン・戦略_満足度": vision_strategy_satisfaction,
-                "福利厚生_期待度": benefits_expectation,
-                "福利厚生_満足度": benefits_satisfaction
-            })
-            
-            # 次のページへ
-            st.session_state.current_page = 8
-            st.rerun()
-
-# 自由記述ページ
-def show_free_comment():
-    st.title("自由記述")
-    
-    with st.form("free_comment_form"):
-        st.write("以下の質問に自由にお答えください。回答は任意です。")
-        
-        strengths = st.text_area(
-            "当社の強みや良い点は何だと思いますか？",
-            height=100,
-            key="strengths",
-            help="会社の強みや良い点について自由にお書きください",
-            label_visibility="visible"
+        st.session_state.current_data['age_group'] = st.selectbox(
+            "年齢層",
+            ["20代以下", "30代", "40代", "50代", "60代以上"]
         )
-        
-        weaknesses = st.text_area(
-            "当社の弱みや改善すべき点は何だと思いますか？",
-            height=100,
-            key="weaknesses",
-            help="会社の弱みや改善すべき点について自由にお書きください",
-            label_visibility="visible"
-        )
-        
-        suggestions = st.text_area(
-            "会社をより良くするための提案があれば教えてください。",
-            height=100,
-            key="suggestions",
-            help="会社をより良くするための提案を自由にお書きください",
-            label_visibility="visible"
-        )
-        
-        submitted = st.form_submit_button("送信")
-        
-        if submitted:
-            # 前のページの回答と結合
-            st.session_state.temp_response.update({
-                "強み・良い点": strengths,
-                "弱み・改善点": weaknesses,
-                "提案": suggestions
-            })
-            
-            # 回答を保存
-            save_response(st.session_state.temp_response)
-            
-            # 完了ページへ
-            st.session_state.current_page = 9
-            st.rerun()
+    
+    st.session_state.current_data['gender'] = st.radio(
+        "性別",
+        ["男性", "女性", "その他", "回答しない"],
+        horizontal=True
+    )
+    
+    if st.button("アンケートを開始する", type="primary"):
+        st.session_state.page = 'survey'
+        st.experimental_rerun()
 
-# 完了ページ
-def show_completion():
-    st.title("アンケート回答完了")
+# アンケートページ
+def show_survey():
+    st.title("従業員満足度・期待度調査")
     
-    st.success("アンケートへのご回答ありがとうございました。皆様のご意見は今後の改善に活かしてまいります。")
+    # プログレスバーの表示
+    progress_placeholder = st.empty()
     
-    # 管理者用のダウンロードボタン
-    st.subheader("管理者用")
+    # フォーム作成
+    with st.form("survey_form"):
+        all_responses = {}
+        all_comments = {}
+        
+        # 各セクションと質問を処理
+        for section_idx, (section, categories) in enumerate(questions.items()):
+            st.header(section)
+            
+            for category, qs in categories.items():
+                st.subheader(category)
+                
+                for q_idx, question in enumerate(qs):
+                    q_key = f"{section}_{category}_{q_idx}"
+                    
+                    st.markdown(f"**{question}**")
+                    
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.markdown("**現在の満足度**")
+                        satisfaction = st.radio(
+                            f"満足度: {question}",
+                            options=list(range(1, 6)),
+                            format_func=lambda x: satisfaction_options[x],
+                            horizontal=True,
+                            key=f"sat_{q_key}",
+                            label_visibility="collapsed"
+                        )
+                        all_responses[f"satisfaction_{q_key}"] = satisfaction
+                    
+                    with col2:
+                        st.markdown("**今後の期待度**")
+                        expectation = st.radio(
+                            f"期待度: {question}",
+                            options=list(range(1, 6)),
+                            format_func=lambda x: expectation_options[x],
+                            horizontal=True,
+                            key=f"exp_{q_key}",
+                            label_visibility="collapsed"
+                        )
+                        all_responses[f"expectation_{q_key}"] = expectation
+                    
+                    # コメント欄（オプション）
+                    comment = st.text_area(
+                        "コメント（任意）",
+                        key=f"comment_{q_key}",
+                        height=100
+                    )
+                    all_comments[f"comment_{q_key}"] = comment
+                    
+                    st.divider()
+        
+        # 特別な質問（有給休暇消化率）
+        st.subheader("追加情報")
+        paid_leave_usage = st.slider(
+            "昨年度の有給休暇消化率を教えてください（%）",
+            min_value=0,
+            max_value=100,
+            value=50,
+            step=5
+        )
+        all_responses["paid_leave_usage"] = paid_leave_usage
+        
+        # 福利厚生に関する自由記述
+        st.subheader("福利厚生について")
+        valued_benefits = st.text_area(
+            "特に評価している福利厚生があれば教えてください。",
+            height=100
+        )
+        all_comments["valued_benefits"] = valued_benefits
+        
+        desired_benefits = st.text_area(
+            "今後、どのような福利厚生があれば良いと感じますか？",
+            height=100
+        )
+        all_comments["desired_benefits"] = desired_benefits
+        
+        # 会社の文化・社風に関する自由記述
+        st.subheader("会社の文化・社風について")
+        culture_comments = st.text_area(
+            "具体的に共感できる点、またはそうでない点があれば教えてください。",
+            height=100
+        )
+        all_comments["culture_comments"] = culture_comments
+        
+        # 送信ボタン
+        submit_button = st.form_submit_button("回答を送信する", type="primary")
+        
+        if submit_button:
+            # 基本情報と回答を結合
+            response_data = {**st.session_state.current_data, **all_responses, **all_comments}
+            response_data['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            # データフレームに変換
+            df = pd.DataFrame([response_data])
+            
+            # データを保存
+            save_data(df)
+            
+            # セッション状態を更新
+            st.session_state.responses.append(response_data)
+            st.session_state.page = 'thank_you'
+            st.experimental_rerun()
+
+# サンキューページ
+def show_thank_you():
+    st.title("ご回答ありがとうございました")
+    st.markdown("""
+    アンケートへのご協力ありがとうございました。
+    いただいた回答は、より良い職場環境づくりのために活用させていただきます。
+    
+    特に満足度が高かった項目と改善の余地があると感じられた項目について、
+    後日改めて個別ヒアリングをお願いする場合がございます。
+    """)
+    
+    if st.button("ダッシュボードを表示", type="primary"):
+        st.session_state.page = 'dashboard'
+        st.experimental_rerun()
+
+# ダッシュボードページ
+def show_dashboard():
+    st.title("従業員満足度・期待度ダッシュボード")
+    
+    # データの読み込み
+    df = load_data()
+    
+    if df.empty:
+        st.warning("まだデータがありません。アンケートに回答してください。")
+        return
+    
+    # サイドバーでフィルタリングオプションを提供
+    st.sidebar.header("フィルター")
+    
+    # 部署フィルター
+    if 'department' in df.columns:
+        departments = ["すべて"] + sorted(df['department'].unique().tolist())
+        selected_dept = st.sidebar.selectbox("部署", departments)
+        
+        if selected_dept != "すべて":
+            df = df[df['department'] == selected_dept]
+    
+    # 役職フィルター
+    if 'position' in df.columns:
+        positions = ["すべて"] + sorted(df['position'].unique().tolist())
+        selected_pos = st.sidebar.selectbox("役職", positions)
+        
+        if selected_pos != "すべて":
+            df = df[df['position'] == selected_pos]
+    
+    # 勤続年数フィルター
+    if 'years_of_service' in df.columns:
+        min_years, max_years = int(df['years_of_service'].min()), int(df['years_of_service'].max())
+        years_range = st.sidebar.slider(
+            "勤続年数の範囲",
+            min_value=min_years,
+            max_value=max_years,
+            value=(min_years, max_years)
+        )
+        df = df[(df['years_of_service'] >= years_range[0]) & (df['years_of_service'] <= years_range[1])]
+    
+    # ダッシュボードの表示
+    st.header("全体サマリー")
+    
+    # 回答者数
+    st.metric("回答者数", len(df))
+    
+    # 満足度と期待度のカラムを抽出
+    satisfaction_cols = [col for col in df.columns if col.startswith('satisfaction_')]
+    expectation_cols = [col for col in df.columns if col.startswith('expectation_')]
+    
+    # 平均値の計算
+    avg_satisfaction = df[satisfaction_cols].mean().mean()
+    avg_expectation = df[expectation_cols].mean().mean()
     
     col1, col2 = st.columns(2)
     
     with col1:
-        if st.button("新しいアンケートに回答する"):
-            st.session_state.form_submitted = False
-            st.session_state.current_page = 1
-            st.rerun()
+        st.metric("平均満足度", f"{avg_satisfaction:.2f}/5.00")
     
     with col2:
-        excel_data = convert_to_excel()
-        if excel_data:
-            st.download_button(
-                label="回答データをダウンロード",
-                data=excel_data,
-                file_name=f"recruitment_survey_responses_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        st.metric("平均期待度", f"{avg_expectation:.2f}/5.00")
+    
+    # 満足度と期待度のギャップ分析
+    st.header("満足度と期待度のギャップ分析")
+    
+    # 各質問カテゴリの平均値を計算
+    category_data = []
+    
+    for section, categories in questions.items():
+        for category, qs in categories.items():
+            for q_idx, question in enumerate(qs):
+                q_key = f"{section}_{category}_{q_idx}"
+                
+                sat_key = f"satisfaction_{q_key}"
+                exp_key = f"expectation_{q_key}"
+                
+                if sat_key in df.columns and exp_key in df.columns:
+                    avg_sat = df[sat_key].mean()
+                    avg_exp = df[exp_key].mean()
+                    gap = avg_exp - avg_sat
+                    
+                    category_data.append({
+                        "セクション": section,
+                        "カテゴリ": category,
+                        "質問": question,
+                        "満足度": avg_sat,
+                        "期待度": avg_exp,
+                        "ギャップ": gap
+                    })
+    
+    if category_data:
+        category_df = pd.DataFrame(category_data)
+        
+        # ギャップが大きい順にソート
+        sorted_df = category_df.sort_values("ギャップ", ascending=False)
+        
+        # ギャップが最も大きい項目
+        st.subheader("改善優先度が高い項目（期待度と満足度のギャップが大きい項目）")
+        
+        top_gaps = sorted_df.head(5)
+        
+        for _, row in top_gaps.iterrows():
+            with st.expander(f"{row['質問']} (ギャップ: {row['ギャップ']:.2f})"):
+                col1, col2, col3 = st.columns(3)
+                col1.metric("満足度", f"{row['満足度']:.2f}/5.00")
+                col2.metric("期待度", f"{row['期待度']:.2f}/5.00")
+                col3.metric("ギャップ", f"{row['ギャップ']:.2f}")
+        
+        # ギャップチャートの作成
+        st.subheader("カテゴリ別満足度・期待度ギャップ")
+        
+        # カテゴリごとの平均を計算
+        category_avg = category_df.groupby("カテゴリ")[["満足度", "期待度", "ギャップ"]].mean().reset_index()
+        category_avg = category_avg.sort_values("ギャップ", ascending=False)
+        
+        fig = go.Figure()
+        
+        fig.add_trace(go.Bar(
+            y=category_avg["カテゴリ"],
+            x=category_avg["満足度"],
+            name="満足度",
+            orientation='h',
+            marker=dict(color='rgba(58, 71, 80, 0.6)')
+        ))
+        
+        fig.add_trace(go.Bar(
+            y=category_avg["カテゴリ"],
+            x=category_avg["期待度"],
+            name="期待度",
+            orientation='h',
+            marker=dict(color='rgba(246, 78, 139, 0.6)')
+        ))
+        
+        fig.update_layout(
+            barmode='group',
+            title="カテゴリ別 満足度 vs 期待度",
+            xaxis_title="スコア (5段階評価)",
+            yaxis=dict(
+                title="カテゴリ",
+                categoryorder='total ascending'
+            ),
+            legend=dict(
+                x=0.1,
+                y=1.1,
+                orientation="h"
+            ),
+            height=600
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+    
+    # NPS分析
+    st.header("NPS (Net Promoter Score) 分析")
+    
+    nps_key = "satisfaction_C. 総合評価_総合評価_3"  # NPS質問のキー
+    
+    if nps_key in df.columns:
+        nps_scores = df[nps_key]
+        
+        # NPS計算
+        promoters = (nps_scores >= 4).sum() / len(nps_scores) * 100
+        passives = ((nps_scores == 3)).sum() / len(nps_scores) * 100
+        detractors = (nps_scores <= 2).sum() / len(nps_scores) * 100
+        
+        nps = promoters - detractors
+        
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric("NPS", f"{nps:.1f}%")
+        
+        with col2:
+            st.metric("推奨者", f"{promoters:.1f}%")
+        
+        with col3:
+            st.metric("中立者", f"{passives:.1f}%")
+        
+        with col4:
+            st.metric("批判者", f"{detractors:.1f}%")
+        
+        # NPS分布グラフ
+        fig = px.histogram(
+            df,
+            x=nps_key,
+            nbins=5,
+            labels={nps_key: "スコア"},
+            title="NPS分布",
+            color_discrete_sequence=['#3366CC']
+        )
+        
+        fig.update_layout(
+            xaxis=dict(
+                tickmode='linear',
+                tick0=1,
+                dtick=1,
+                ticktext=["1 (全く勧めない)", "2", "3", "4", "5 (強く勧める)"],
+                tickvals=[1, 2, 3, 4, 5]
             )
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
     
-    # 回答数の表示
-    st.info(f"現在の回答数: {len(st.session_state.responses)}件")
+    # 部署別・役職別分析
+    st.header("部署別・役職別分析")
     
-    # 回答データのプレビュー（管理者向け）
-    if st.checkbox("回答データを表示"):
-        if st.session_state.responses:
-            st.dataframe(pd.DataFrame(st.session_state.responses))
-        else:
-            st.write("回答データがありません。")
+    tab1, tab2 = st.tabs(["部署別分析", "役職別分析"])
+    
+    with tab1:
+        if 'department' in df.columns:
+            dept_avg = df.groupby('department')[satisfaction_cols].mean().mean(axis=1).reset_index()
+            dept_avg.columns = ['部署', '平均満足度']
+            
+            fig = px.bar(
+                dept_avg,
+                x='部署',
+                y='平均満足度',
+                title="部署別平均満足度",
+                color='平均満足度',
+                color_continuous_scale='Viridis'
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+    
+    with tab2:
+        if 'position' in df.columns:
+            pos_avg = df.groupby('position')[satisfaction_cols].mean().mean(axis=1).reset_index()
+            pos_avg.columns = ['役職', '平均満足度']
+            
+            # 役職の順序を設定
+            position_order = ["一般社員", "主任", "係長", "課長", "部長", "役員", "その他"]
+            pos_avg['役職'] = pd.Categorical(pos_avg['役職'], categories=position_order, ordered=True)
+            pos_avg = pos_avg.sort_values('役職')
+            
+            fig = px.bar(
+                pos_avg,
+                x='役職',
+                y='平均満足度',
+                title="役職別平均満足度",
+                color='平均満足度',
+                color_continuous_scale='Viridis'
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+    
+    # 勤続年数と満足度の関係
+    st.header("勤続年数と満足度の関係")
+    
+    if 'years_of_service' in df.columns:
+        # 勤続年数ごとの平均満足度を計算
+        df['avg_satisfaction'] = df[satisfaction_cols].mean(axis=1)
+        
+        fig = px.scatter(
+            df,
+            x='years_of_service',
+            y='avg_satisfaction',
+            title="勤続年数と満足度の関係",
+            labels={'years_of_service': '勤続年数', 'avg_satisfaction': '平均満足度'},
+            trendline="ols",
+            color='department' if 'department' in df.columns else None
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+    
+    # 自由記述コメントの表示
+    st.header("自由記述コメント")
+    
+    comment_cols = [col for col in df.columns if col.startswith('comment_')]
+    
+    if comment_cols:
+        # コメントがある列のみを抽出
+        comments_df = df[['timestamp'] + comment_cols].copy()
+        
+        # 空でないコメントのみをフィルタリング
+        for col in comment_cols:
+            comments_df = comments_df[comments_df[col].notna() & (comments_df[col] != "")]
+        
+        if not comments_df.empty:
+            for col in comment_cols:
+                if col in comments_df.columns:
+                 
+            for col in comment_cols:
+                if col in comments_df.columns:
+                    # 質問に対応するコメントを表示
+                    q_key = col.replace('comment_', '')
+                    
+                    # セクション、カテゴリ、質問インデックスを抽出
+                    parts = q_key.split('_')
+                    if len(parts) >= 3:
+                        section = parts[0]
+                        category = parts[1]
+                        q_idx = int(parts[2])
+                        
+                        # 対応する質問を見つける
+                        if section in questions and category in questions[section] and q_idx < len(questions[section][category]):
+                            question = questions[section][category][q_idx]
+                            
+                            with st.expander(f"コメント: {question}"):
+                                for _, row in comments_df[comments_df[col].notna() & (comments_df[col] != "")].iterrows():
+                                    st.markdown(f"**{row['timestamp']}**")
+                                    st.markdown(row[col])
+                                    st.divider()
+        
+        # 特別なコメント欄
+        special_comments = ['valued_benefits', 'desired_benefits', 'culture_comments']
+        
+        for comment_key in special_comments:
+            if comment_key in df.columns:
+                comments = df[df[comment_key].notna() & (df[comment_key] != "")]
+                
+                if not comments.empty:
+                    comment_title = {
+                        'valued_benefits': "評価している福利厚生",
+                        'desired_benefits': "希望する福利厚生",
+                        'culture_comments': "会社の文化・社風についてのコメント"
+                    }.get(comment_key, comment_key)
+                    
+                    with st.expander(comment_title):
+                        for _, row in comments.iterrows():
+                            st.markdown(f"**{row['timestamp']}**")
+                            st.markdown(row[comment_key])
+                            st.divider()
+    
+    # 新しいアンケートを開始するボタン
+    if st.button("新しいアンケートを開始", type="primary"):
+        st.session_state.page = 'intro'
+        st.experimental_rerun()
 
-# メイン関数
+# メインアプリケーション
 def main():
-    # 現在のページに応じて表示を切り替え
-    if st.session_state.current_page == 1:
-        show_introduction()
-    elif st.session_state.current_page == 2:
-        show_basic_info()
-    elif st.session_state.current_page == 3:
-        show_overall_evaluation()
-    elif st.session_state.current_page == 4:
-        show_work_evaluation()
-    elif st.session_state.current_page == 5:
-        show_career_evaluation()
-    elif st.session_state.current_page == 6:
-        show_environment_evaluation()
-    elif st.session_state.current_page == 7:
-        show_company_evaluation()
-    elif st.session_state.current_page == 8:
-        show_free_comment()
-    elif st.session_state.current_page == 9:
-        show_completion()
+    # カスタムCSS
+    st.markdown("""
+    <style>
+    .stApp {
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+    .stRadio > div {
+        flex-direction: row;
+    }
+    .stRadio label {
+        margin-right: 15px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # ページ表示
+    if st.session_state.page == 'intro':
+        show_intro()
+    elif st.session_state.page == 'survey':
+        show_survey()
+    elif st.session_state.page == 'thank_you':
+        show_thank_you()
+    elif st.session_state.page == 'dashboard':
+        show_dashboard()
 
 if __name__ == "__main__":
     main()
