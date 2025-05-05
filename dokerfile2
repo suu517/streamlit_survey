@@ -1,0 +1,10 @@
+FROM python:3.9-slim-buster
+
+WORKDIR /app
+
+COPY streamlit_survey.txt .
+RUN pip install -r streamlit_survey.txt
+
+COPY . .
+
+CMD ["streamlit", "run", "streamlit_survey.py"]
