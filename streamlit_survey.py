@@ -618,10 +618,6 @@ def show_dashboard():
             comments_df = comments_df[comments_df[col].notna() & (comments_df[col] != "")]
         
         if not comments_df.empty:
-            # コメントがある列を処理
-            for col in comment_cols:
-                if col in comments_df.columns:
-                 
             for col in comment_cols:
                 if col in comments_df.columns:
                     # 質問に対応するコメントを表示
