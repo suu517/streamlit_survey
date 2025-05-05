@@ -1,4 +1,4 @@
 streamlit
 pandas
-plotly==5.20.0  # 例としてのバージョン指定
+plotly==5.20.0 
 numpy
