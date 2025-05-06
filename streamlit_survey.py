@@ -58,8 +58,30 @@ expectation_options = {
     5: "非常に期待している"
 }
 
+# NPS用の10段階評価のオプション
+nps_options = {
+    1: "全く勧めない",
+    2: "2",
+    3: "3",
+    4: "4",
+    5: "5",
+    6: "6",
+    7: "7",
+    8: "8",
+    9: "9",
+    10: "積極的に勧める"
+}
+
 # 質問リスト
 questions = {
+    "C. 総合評価": {
+        "総合評価": [
+            "親しい家族や友人にどの程度自社を勧めたいのか（NPS）",
+            "総合満足度",
+            "この会社にどれぐらい長く勤めいたいと感じているのか",
+            "自分は現在の会社もしくは部署でどれぐらい活躍できていると感じるのか"
+        ]
+    },
     "A. あなたの仕事について": {
         "勤務時間": [
             "現在の残業時間について、どのように感じていますか？",
@@ -153,14 +175,6 @@ questions = {
         "会社の法令遵守な体制": [
             "社内の法令遵守の体制について、どの程度感じますか？"
         ]
-    },
-    "C. 総合評価": {
-        "総合評価": [
-            "総合満足度",
-            "この会社にどれぐらい長く勤めいたいと感じているのか",
-            "自分は現在の会社もしくは部署でどれぐらい活躍できていると感じるのか",
-            "親しい家族や友人にどの程度自社を勧めたいのか（NPS）"
-        ]
     }
 }
 
@@ -237,39 +251,51 @@ def show_survey():
                     
                     st.markdown(f"**{question}**")
                     
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        st.markdown("**現在の満足度**")
-                        satisfaction = st.radio(
-                            f"満足度: {question}",
-                            options=list(range(1, 6)),
-                            format_func=lambda x: satisfaction_options[x],
+                    # NPSの質問（10段階評価）
+                    if "NPS" in question:
+                        nps_value = st.radio(
+                            f"NPS: {question}",
+                            options=list(range(1, 11)),
+                            format_func=lambda x: nps_options[x],
                             horizontal=True,
-                            key=f"sat_{q_key}",
-                            label_visibility="collapsed"
+                            key=f"nps_{q_key}"
                         )
-                        all_responses[f"satisfaction_{q_key}"] = satisfaction
+                        all_responses[f"nps_{q_key}"] = nps_value
+                    else:
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            st.markdown("**現在の満足度**")
+                            satisfaction = st.radio(
+                                f"満足度: {question}",
+                                options=list(range(1, 6)),
+                                format_func=lambda x: satisfaction_options[x],
+                                horizontal=True,
+                                key=f"sat_{q_key}",
+                                label_visibility="collapsed"
+                            )
+                            all_responses[f"satisfaction_{q_key}"] = satisfaction
+                        
+                        with col2:
+                            st.markdown("**今後の期待度**")
+                            expectation = st.radio(
+                                f"期待度: {question}",
+                                options=list(range(1, 6)),
+                                format_func=lambda x: expectation_options[x],
+                                horizontal=True,
+                                key=f"exp_{q_key}",
+                                label_visibility="collapsed"
+                            )
+                            all_responses[f"expectation_{q_key}"] = expectation
                     
-                    with col2:
-                        st.markdown("**今後の期待度**")
-                        expectation = st.radio(
-                            f"期待度: {question}",
-                            options=list(range(1, 6)),
-                            format_func=lambda x: expectation_options[x],
-                            horizontal=True,
-                            key=f"exp_{q_key}",
-                            label_visibility="collapsed"
+                    # コメント欄（オプション）- 文化・社風の具体的な記載項目は削除
+                    if not ("文化・社風" in category and "共感できる" in question):
+                        comment = st.text_area(
+                            "コメント（任意）",
+                            key=f"comment_{q_key}",
+                            height=100
                         )
-                        all_responses[f"expectation_{q_key}"] = expectation
-                    
-                    # コメント欄（オプション）
-                    comment = st.text_area(
-                        "コメント（任意）",
-                        key=f"comment_{q_key}",
-                        height=100
-                    )
-                    all_comments[f"comment_{q_key}"] = comment
+                        all_comments[f"comment_{q_key}"] = comment
                     
                     st.divider()
         
@@ -298,14 +324,6 @@ def show_survey():
         )
         all_comments["desired_benefits"] = desired_benefits
         
-        # 会社の文化・社風に関する自由記述
-        st.subheader("会社の文化・社風について")
-        culture_comments = st.text_area(
-            "具体的に共感できる点、またはそうでない点があれば教えてください。",
-            height=100
-        )
-        all_comments["culture_comments"] = culture_comments
-        
         # 送信ボタン
         submit_button = st.form_submit_button("回答を送信する", type="primary")
         
@@ -331,9 +349,6 @@ def show_thank_you():
     st.markdown("""
     アンケートへのご協力ありがとうございました。
     いただいた回答は、より良い職場環境づくりのために活用させていただきます。
-    
-    特に満足度が高かった項目と改善の余地があると感じられた項目について、
-    後日改めて個別ヒアリングをお願いする場合がございます。
     """)
     
     if st.button("ダッシュボードを表示", type="primary"):
@@ -413,6 +428,10 @@ def show_dashboard():
         for category, qs in categories.items():
             for q_idx, question in enumerate(qs):
                 q_key = f"{section}_{category}_{q_idx}"
+                
+                # NPSの質問はスキップ
+                if "NPS" in question:
+                    continue
                 
                 sat_key = f"satisfaction_{q_key}"
                 exp_key = f"expectation_{q_key}"
@@ -495,15 +514,15 @@ def show_dashboard():
     # NPS分析
     st.header("NPS (Net Promoter Score) 分析")
     
-    nps_key = "satisfaction_C. 総合評価_総合評価_3"  # NPS質問のキー
+    nps_key = "nps_C. 総合評価_総合評価_0"  # NPS質問のキー
     
     if nps_key in df.columns:
         nps_scores = df[nps_key]
         
-        # NPS計算
-        promoters = (nps_scores >= 4).sum() / len(nps_scores) * 100
-        passives = ((nps_scores == 3)).sum() / len(nps_scores) * 100
-        detractors = (nps_scores <= 2).sum() / len(nps_scores) * 100
+        # NPS計算 (10段階評価の場合)
+        promoters = (nps_scores >= 9).sum() / len(nps_scores) * 100
+        passives = ((nps_scores >= 7) & (nps_scores <= 8)).sum() / len(nps_scores) * 100
+        detractors = (nps_scores <= 6).sum() / len(nps_scores) * 100
         
         nps = promoters - detractors
         
@@ -525,7 +544,7 @@ def show_dashboard():
         fig = px.histogram(
             df,
             x=nps_key,
-            nbins=5,
+            nbins=10,
             labels={nps_key: "スコア"},
             title="NPS分布",
             color_discrete_sequence=['#3366CC']
@@ -536,8 +555,8 @@ def show_dashboard():
                 tickmode='linear',
                 tick0=1,
                 dtick=1,
-                ticktext=["1 (全く勧めない)", "2", "3", "4", "5 (強く勧める)"],
-                tickvals=[1, 2, 3, 4, 5]
+                ticktext=["1 (全く勧めない)", "2", "3", "4", "5", "6", "7", "8", "9", "10 (積極的に勧める)"],
+                tickvals=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
             )
         )
         
@@ -628,6 +647,9 @@ def show_dashboard():
                     if len(parts) >= 3:
                         section = parts[0]
                         category = parts[1]
+                  >= 3:
+                        section = parts[0]
+                        category = parts[1]
                         q_idx = int(parts[2])
                         
                         # 対応する質問を見つける
@@ -641,7 +663,7 @@ def show_dashboard():
                                     st.divider()
         
         # 特別なコメント欄
-        special_comments = ['valued_benefits', 'desired_benefits', 'culture_comments']
+        special_comments = ['valued_benefits', 'desired_benefits']
         
         for comment_key in special_comments:
             if comment_key in df.columns:
@@ -650,8 +672,7 @@ def show_dashboard():
                 if not comments.empty:
                     comment_title = {
                         'valued_benefits': "評価している福利厚生",
-                        'desired_benefits': "希望する福利厚生",
-                        'culture_comments': "会社の文化・社風についてのコメント"
+                        'desired_benefits': "希望する福利厚生"
                     }.get(comment_key, comment_key)
                     
                     with st.expander(comment_title):
