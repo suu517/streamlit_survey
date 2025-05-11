@@ -54,31 +54,31 @@ rating_options_11 = {
 }
 
 # 5段階評価のオプション
-rating_options_5 = {
-    1: "満足していない",
-    2: "どちらかと言えば満足していない",
-    3: "どちらとも言えない",
-    4: "どちらかと言えば満足している",
-    5: "満足している"
-}
+rating_options_5 = [
+    "満足していない",
+    "どちらかと言えば満足していない",
+    "どちらとも言えない",
+    "どちらかと言えば満足している",
+    "満足している"
+]
 
 # 期待度の5段階評価のオプション
-expectation_options_5 = {
-    1: "期待していない",
-    2: "どちらかと言えば期待していない",
-    3: "どちらとも言えない",
-    4: "どちらかと言えば期待している",
-    5: "期待している"
-}
+expectation_options_5 = [
+    "期待していない",
+    "どちらかと言えば期待していない",
+    "どちらとも言えない",
+    "どちらかと言えば期待している",
+    "期待している"
+]
 
 # 活躍貢献度の5段階評価のオプション
-contribution_options_5 = {
-    1: "活躍貢献できていない",
-    2: "どちらかと言えば活躍貢献できていない",
-    3: "どちらとも言えない",
-    4: "どちらかと言えば活躍貢献できていると感じる",
-    5: "活躍貢献できていると感じる"
-}
+contribution_options_5 = [
+    "活躍貢献できていない",
+    "どちらかと言えば活躍貢献できていない",
+    "どちらとも言えない",
+    "どちらかと言えば活躍貢献できていると感じる",
+    "活躍貢献できていると感じる"
+]
 
 # デモグラフィック項目
 demographic_questions = {
@@ -161,7 +161,7 @@ expectation_satisfaction_categories = {
     },
     "人間関係・組織風土": {
         "人間関係": "人間関係が良好な職場である",
-        "ハラスメント対策": "セクハラやパワハラがないような職場である",
+        "ハラスメント対策": "セクハラやパワハラがない���うな職場である",
         "組織文化・カルチャーフィット": "自身の価値観や考え方と共感出来るような会社の社風や文化がある",
         "組織文化・風通し": "意見や考え方などについて自由に言い合える風通しの良い職場である",
         "組織文化・学習協働文化": "社内で相互に教えたったり・学び合ったりするような職場である"
@@ -180,8 +180,18 @@ expectation_satisfaction_categories = {
     }
 }
 
+# ページ遷移時に一番上にスクロールする関数
+def scroll_to_top():
+    js = '''
+    <script>
+        window.scrollTo(0, 0);
+    </script>
+    '''
+    st.markdown(js, unsafe_allow_html=True)
+
 # イントロページ
 def show_intro():
+    scroll_to_top()
     st.title("従業員満足度・期待度調査")
     st.markdown("""
     このアンケートは、従業員の皆様の満足度と期待度を調査し、より良い職場環境づくりに役立てることを目的としています。
@@ -198,6 +208,7 @@ def show_intro():
 
 # デモグラフィックページ
 def show_demographics():
+    scroll_to_top()
     st.title("基本情報")
     st.markdown("以下の基本情報をご入力ください。")
     
@@ -236,12 +247,11 @@ def show_demographics():
                         options=list(range(current_year, current_year - 50, -1))
                     )
                 elif question == "年収":
-                    st.session_state.responses[question] = st.slider(
+                    # 年収を半角数字で直接入力
+                    st.session_state.responses[question] = st.text_input(
                         f"{question}（万円）",
-                        min_value=200,
-                        max_value=2000,
-                        value=500,
-                        step=50
+                        value="500",
+                        help="半角数字で入力してください"
                     )
             else:
                 # 選択肢がある場合
@@ -256,35 +266,73 @@ def show_demographics():
             st.session_state.current_page = 3
             st.experimental_rerun()
 
-# 評価項目ページ
+# 評価項目ページ（リッカート尺度形式）
 def show_evaluation():
+    scroll_to_top()
     st.title("総合評価")
     st.markdown("以下の質問について、あなたの評価をお聞かせください。")
     
     with st.form("evaluation_form"):
+        # 11段階評価の質問（リッカート尺度形式）
+        st.subheader("総合評価項目")
+        
+        # 表のヘッダー
+        col_headers = st.columns([3] + [1] * 11)
+        with col_headers[0]:
+            st.write("質問")
+        for i, col in enumerate(col_headers[1:]):
+            with col:
+                st.write(f"{i}")
+        
+        # 11段階評価の質問
         for item in evaluation_questions:
-            st.markdown(f"**{item['question']}**")
-            
             if item['type'] == 'rating_11':
-                st.session_state.responses[item['key']] = st.radio(
-                    item['question'],
-                    options=list(range(0, 11)),
-                    format_func=lambda x: rating_options_11[x],
-                    horizontal=True,
-                    key=f"eval_{item['key']}",
-                    label_visibility="collapsed"
-                )
-            elif item['type'] == 'contribution_5':
-                st.session_state.responses[item['key']] = st.radio(
-                    item['question'],
-                    options=list(range(1, 6)),
-                    format_func=lambda x: contribution_options_5[x],
-                    horizontal=True,
-                    key=f"eval_{item['key']}",
-                    label_visibility="collapsed"
-                )
-            
-            st.divider()
+                cols = st.columns([3] + [1] * 11)
+                with cols[0]:
+                    st.write(item['question'])
+                
+                # ラジオボタンを横に並べる
+                selected_value = None
+                for i in range(11):
+                    with cols[i+1]:
+                        if st.radio("", [True, False], key=f"eval_{item['key']}_{i}", label_visibility="collapsed", index=1) == True:
+                            selected_value = i
+                
+                # 選択された値を保存
+                if selected_value is not None:
+                    st.session_state.responses[item['key']] = selected_value
+                else:
+                    st.session_state.responses[item['key']] = 5  # デフォルト値
+        
+        # 活躍貢献度の質問（5段階評価）
+        st.subheader("活躍貢献度")
+        
+        # 選択肢の説明を先に表示
+        st.markdown("### 選択肢の説明")
+        for i, option in enumerate(contribution_options_5):
+            st.write(f"{i+1}. {option}")
+        
+        # 質問と選択肢
+        for item in evaluation_questions:
+            if item['type'] == 'contribution_5':
+                st.markdown(f"**{item['question']}**")
+                
+                cols = st.columns([3] + [1] * 5)
+                with cols[0]:
+                    st.write("選択してください")
+                
+                # ラジオボタンを横に並べる
+                selected_value = None
+                for i in range(5):
+                    with cols[i+1]:
+                        if st.radio("", [True, False], key=f"eval_{item['key']}_{i}", label_visibility="collapsed", index=1) == True:
+                            selected_value = i+1
+                
+                # 選択された値を保存
+                if selected_value is not None:
+                    st.session_state.responses[item['key']] = selected_value
+                else:
+                    st.session_state.responses[item['key']] = 3  # デフォルト値
         
         submit_button = st.form_submit_button("次へ進む", type="primary")
         
@@ -292,28 +340,49 @@ def show_evaluation():
             st.session_state.current_page = 4
             st.experimental_rerun()
 
-# 期待項目ページ
+# 期待項目ページ（リッカート尺度形式）
 def show_expectation():
+    scroll_to_top()
     st.title("期待項目の確認")
     st.markdown("以下の項目について、今の会社にどの程度**期待**しているかを率直にお答えください。")
+    
+    # 選択肢の説明を先に表示
+    st.markdown("### 選択肢の説明")
+    for i, option in enumerate(expectation_options_5):
+        st.write(f"{i+1}. {option}")
     
     with st.form("expectation_form"):
         for category, questions in expectation_satisfaction_categories.items():
             st.header(category)
             
+            # 表形式で表示
+            cols = st.columns([3] + [1] * 5)
+            with cols[0]:
+                st.write("質問項目")
+            for i in range(5):
+                with cols[i+1]:
+                    st.write(f"{i+1}")
+            
+            # 各質問項目
             for q_key, question in questions.items():
-                st.markdown(f"**{question}**")
+                cols = st.columns([3] + [1] * 5)
+                with cols[0]:
+                    st.write(question)
                 
-                st.session_state.responses[f"expectation_{q_key}"] = st.radio(
-                    f"期待度: {question}",
-                    options=list(range(1, 6)),
-                    format_func=lambda x: expectation_options_5[x],
-                    horizontal=True,
-                    key=f"exp_{q_key}",
-                    label_visibility="collapsed"
-                )
+                # ラジオボタンを横に並べる
+                selected_value = None
+                for i in range(5):
+                    with cols[i+1]:
+                        if st.radio("", [True, False], key=f"exp_{q_key}_{i}", label_visibility="collapsed", index=1) == True:
+                            selected_value = i+1
                 
-                st.divider()
+                # 選択された値を保存
+                if selected_value is not None:
+                    st.session_state.responses[f"expectation_{q_key}"] = selected_value
+                else:
+                    st.session_state.responses[f"expectation_{q_key}"] = 3  # デフォルト値
+            
+            st.divider()
         
         submit_button = st.form_submit_button("次へ進む", type="primary")
         
@@ -321,28 +390,49 @@ def show_expectation():
             st.session_state.current_page = 5
             st.experimental_rerun()
 
-# 満足項目ページ
+# 満足項目ページ（リッカート尺度形式）
 def show_satisfaction():
+    scroll_to_top()
     st.title("満足項目の確認")
     st.markdown("以下の項目について、今の会社にどの程度**満足**しているかを率直にお答えください。")
+    
+    # 選択肢の説明を先に表示
+    st.markdown("### 選択肢の説明")
+    for i, option in enumerate(rating_options_5):
+        st.write(f"{i+1}. {option}")
     
     with st.form("satisfaction_form"):
         for category, questions in expectation_satisfaction_categories.items():
             st.header(category)
             
+            # 表形式で表示
+            cols = st.columns([3] + [1] * 5)
+            with cols[0]:
+                st.write("質問項目")
+            for i in range(5):
+                with cols[i+1]:
+                    st.write(f"{i+1}")
+            
+            # 各質問項目
             for q_key, question in questions.items():
-                st.markdown(f"**{question}**")
+                cols = st.columns([3] + [1] * 5)
+                with cols[0]:
+                    st.write(question)
                 
-                st.session_state.responses[f"satisfaction_{q_key}"] = st.radio(
-                    f"満足度: {question}",
-                    options=list(range(1, 6)),
-                    format_func=lambda x: rating_options_5[x],
-                    horizontal=True,
-                    key=f"sat_{q_key}",
-                    label_visibility="collapsed"
-                )
+                # ラジオボタンを横に並べる
+                selected_value = None
+                for i in range(5):
+                    with cols[i+1]:
+                        if st.radio("", [True, False], key=f"sat_{q_key}_{i}", label_visibility="collapsed", index=1) == True:
+                            selected_value = i+1
                 
-                st.divider()
+                # 選択された値を保存
+                if selected_value is not None:
+                    st.session_state.responses[f"satisfaction_{q_key}"] = selected_value
+                else:
+                    st.session_state.responses[f"satisfaction_{q_key}"] = 3  # デフォルト値
+            
+            st.divider()
         
         submit_button = st.form_submit_button("回答を送信する", type="primary")
         
@@ -359,6 +449,7 @@ def show_satisfaction():
 
 # サンキューページ
 def show_thank_you():
+    scroll_to_top()
     st.title("ご回答ありがとうございました")
     st.markdown("""
     アンケートへのご協力ありがとうございました。
