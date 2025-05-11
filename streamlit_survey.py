@@ -277,32 +277,48 @@ def show_evaluation():
         st.subheader("総合評価項目")
         
         # 表のヘッダー
-        col_headers = st.columns([3] + [1] * 11)
-        with col_headers[0]:
-            st.write("質問")
-        for i, col in enumerate(col_headers[1:]):
-            with col:
-                st.write(f"{i}")
+        st.markdown("""
+        <style>
+        .rating-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .rating-table th, .rating-table td {
+            padding: 8px;
+            text-align: center;
+            border: 1px solid #ddd;
+        }
+        .rating-table th:first-child, .rating-table td:first-child {
+            text-align: left;
+            width: 40%;
+        }
+        </style>
+        """, unsafe_allow_html=True)
         
         # 11段階評価の質問
         for item in evaluation_questions:
             if item['type'] == 'rating_11':
-                cols = st.columns([3] + [1] * 11)
-                with cols[0]:
-                    st.write(item['question'])
+                st.markdown(f"**{item['question']}**")
                 
-                # ラジオボタンを横に並べる
-                selected_value = None
+                # 選択肢を横に並べる
+                cols = st.columns(11)
                 for i in range(11):
-                    with cols[i+1]:
-                        if st.radio("", [True, False], key=f"eval_{item['key']}_{i}", label_visibility="collapsed", index=1) == True:
-                            selected_value = i
+                    with cols[i]:
+                        st.write(f"{i}")
+                
+                # ラジオボタンを作成
+                value = st.radio(
+                    "選択してください",
+                    options=list(range(11)),
+                    horizontal=True,
+                    key=f"eval_{item['key']}",
+                    label_visibility="collapsed"
+                )
                 
                 # 選択された値を保存
-                if selected_value is not None:
-                    st.session_state.responses[item['key']] = selected_value
-                else:
-                    st.session_state.responses[item['key']] = 5  # デフォルト値
+                st.session_state.responses[item['key']] = value
+                
+                st.divider()
         
         # 活躍貢献度の質問（5段階評価）
         st.subheader("活躍貢献度")
@@ -317,22 +333,23 @@ def show_evaluation():
             if item['type'] == 'contribution_5':
                 st.markdown(f"**{item['question']}**")
                 
-                cols = st.columns([3] + [1] * 5)
-                with cols[0]:
-                    st.write("選択してください")
-                
-                # ラジオボタンを横に並べる
-                selected_value = None
+                # 選択肢を横に並べる
+                cols = st.columns(5)
                 for i in range(5):
-                    with cols[i+1]:
-                        if st.radio("", [True, False], key=f"eval_{item['key']}_{i}", label_visibility="collapsed", index=1) == True:
-                            selected_value = i+1
+                    with cols[i]:
+                        st.write(f"{i+1}")
+                
+                # ラジオボタンを作成
+                value = st.radio(
+                    "選択してください",
+                    options=list(range(1, 6)),
+                    horizontal=True,
+                    key=f"eval_{item['key']}",
+                    label_visibility="collapsed"
+                )
                 
                 # 選択された値を保存
-                if selected_value is not None:
-                    st.session_state.responses[item['key']] = selected_value
-                else:
-                    st.session_state.responses[item['key']] = 3  # デフォルト値
+                st.session_state.responses[item['key']] = value
         
         submit_button = st.form_submit_button("次へ進む", type="primary")
         
@@ -355,34 +372,29 @@ def show_expectation():
         for category, questions in expectation_satisfaction_categories.items():
             st.header(category)
             
-            # 表形式で表示
-            cols = st.columns([3] + [1] * 5)
-            with cols[0]:
-                st.write("質問項目")
-            for i in range(5):
-                with cols[i+1]:
-                    st.write(f"{i+1}")
-            
             # 各質問項目
             for q_key, question in questions.items():
-                cols = st.columns([3] + [1] * 5)
-                with cols[0]:
-                    st.write(question)
+                st.markdown(f"**{question}**")
                 
-                # ラジオボタンを横に並べる
-                selected_value = None
+                # 選択肢を横に並べる
+                cols = st.columns(5)
                 for i in range(5):
-                    with cols[i+1]:
-                        if st.radio("", [True, False], key=f"exp_{q_key}_{i}", label_visibility="collapsed", index=1) == True:
-                            selected_value = i+1
+                    with cols[i]:
+                        st.write(f"{i+1}")
+                
+                # ラジオボタンを作成
+                value = st.radio(
+                    f"期待度: {question}",
+                    options=list(range(1, 6)),
+                    horizontal=True,
+                    key=f"exp_{q_key}",
+                    label_visibility="collapsed"
+                )
                 
                 # 選択された値を保存
-                if selected_value is not None:
-                    st.session_state.responses[f"expectation_{q_key}"] = selected_value
-                else:
-                    st.session_state.responses[f"expectation_{q_key}"] = 3  # デフォルト値
-            
-            st.divider()
+                st.session_state.responses[f"expectation_{q_key}"] = value
+                
+                st.divider()
         
         submit_button = st.form_submit_button("次へ進む", type="primary")
         
@@ -405,34 +417,29 @@ def show_satisfaction():
         for category, questions in expectation_satisfaction_categories.items():
             st.header(category)
             
-            # 表形式で表示
-            cols = st.columns([3] + [1] * 5)
-            with cols[0]:
-                st.write("質問項目")
-            for i in range(5):
-                with cols[i+1]:
-                    st.write(f"{i+1}")
-            
             # 各質問項目
             for q_key, question in questions.items():
-                cols = st.columns([3] + [1] * 5)
-                with cols[0]:
-                    st.write(question)
+                st.markdown(f"**{question}**")
                 
-                # ラジオボタンを横に並べる
-                selected_value = None
+                # 選択肢を横に並べる
+                cols = st.columns(5)
                 for i in range(5):
-                    with cols[i+1]:
-                        if st.radio("", [True, False], key=f"sat_{q_key}_{i}", label_visibility="collapsed", index=1) == True:
-                            selected_value = i+1
+                    with cols[i]:
+                        st.write(f"{i+1}")
+                
+                # ラジオボタンを作成
+                value = st.radio(
+                    f"満足度: {question}",
+                    options=list(range(1, 6)),
+                    horizontal=True,
+                    key=f"sat_{q_key}",
+                    label_visibility="collapsed"
+                )
                 
                 # 選択された値を保存
-                if selected_value is not None:
-                    st.session_state.responses[f"satisfaction_{q_key}"] = selected_value
-                else:
-                    st.session_state.responses[f"satisfaction_{q_key}"] = 3  # デフォルト値
-            
-            st.divider()
+                st.session_state.responses[f"satisfaction_{q_key}"] = value
+                
+                st.divider()
         
         submit_button = st.form_submit_button("回答を送信する", type="primary")
         
@@ -473,9 +480,10 @@ def main():
     }
     .stRadio > div {
         flex-direction: row;
+        justify-content: space-between;
     }
     .stRadio label {
-        margin-right: 15px;
+        margin-right: 0;
     }
     </style>
     """, unsafe_allow_html=True)
