@@ -161,7 +161,7 @@ expectation_satisfaction_categories = {
     },
     "人間関係・組織風土": {
         "人間関係": "人間関係が良好な職場である",
-        "ハラスメント対策": "セクハラやパワハラがない���うな職場である",
+        "ハラスメント対策": "セクハラやパワハラがないような職場である",
         "組織文化・カルチャーフィット": "自身の価値観や考え方と共感出来るような会社の社風や文化がある",
         "組織文化・風通し": "意見や考え方などについて自由に言い合える風通しの良い職場である",
         "組織文化・学習協働文化": "社内で相互に教えたったり・学び合ったりするような職場である"
@@ -276,40 +276,22 @@ def show_evaluation():
         # 11段階評価の質問（リッカート尺度形式）
         st.subheader("総合評価項目")
         
-        # 表のヘッダー
-        st.markdown("""
-        <style>
-        .rating-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        .rating-table th, .rating-table td {
-            padding: 8px;
-            text-align: center;
-            border: 1px solid #ddd;
-        }
-        .rating-table th:first-child, .rating-table td:first-child {
-            text-align: left;
-            width: 40%;
-        }
-        </style>
-        """, unsafe_allow_html=True)
+        # 11段階評価の説明
+        st.markdown("### 選択肢の説明")
+        st.write("0: 全く当てはまらない")
+        st.write("5: どちらとも言えない")
+        st.write("10: 非常に当てはまる")
         
         # 11段階評価の質問
         for item in evaluation_questions:
             if item['type'] == 'rating_11':
                 st.markdown(f"**{item['question']}**")
                 
-                # 選択肢を横に並べる
-                cols = st.columns(11)
-                for i in range(11):
-                    with cols[i]:
-                        st.write(f"{i}")
-                
                 # ラジオボタンを作成
                 value = st.radio(
                     "選択してください",
                     options=list(range(11)),
+                    format_func=lambda x: f"{x}",
                     horizontal=True,
                     key=f"eval_{item['key']}",
                     label_visibility="collapsed"
@@ -333,16 +315,11 @@ def show_evaluation():
             if item['type'] == 'contribution_5':
                 st.markdown(f"**{item['question']}**")
                 
-                # 選択肢を横に並べる
-                cols = st.columns(5)
-                for i in range(5):
-                    with cols[i]:
-                        st.write(f"{i+1}")
-                
                 # ラジオボタンを作成
                 value = st.radio(
                     "選択してください",
                     options=list(range(1, 6)),
+                    format_func=lambda x: f"{x}",
                     horizontal=True,
                     key=f"eval_{item['key']}",
                     label_visibility="collapsed"
@@ -376,16 +353,11 @@ def show_expectation():
             for q_key, question in questions.items():
                 st.markdown(f"**{question}**")
                 
-                # 選択肢を横に並べる
-                cols = st.columns(5)
-                for i in range(5):
-                    with cols[i]:
-                        st.write(f"{i+1}")
-                
                 # ラジオボタンを作成
                 value = st.radio(
                     f"期待度: {question}",
                     options=list(range(1, 6)),
+                    format_func=lambda x: f"{x}",
                     horizontal=True,
                     key=f"exp_{q_key}",
                     label_visibility="collapsed"
@@ -421,16 +393,11 @@ def show_satisfaction():
             for q_key, question in questions.items():
                 st.markdown(f"**{question}**")
                 
-                # 選択肢を横に並べる
-                cols = st.columns(5)
-                for i in range(5):
-                    with cols[i]:
-                        st.write(f"{i+1}")
-                
                 # ラジオボタンを作成
                 value = st.radio(
                     f"満足度: {question}",
                     options=list(range(1, 6)),
+                    format_func=lambda x: f"{x}",
                     horizontal=True,
                     key=f"sat_{q_key}",
                     label_visibility="collapsed"
@@ -484,6 +451,16 @@ def main():
     }
     .stRadio label {
         margin-right: 0;
+    }
+    /* 選択肢の数字を強調表示 */
+    .stRadio label span:first-child {
+        font-weight: bold;
+        font-size: 1.1em;
+    }
+    /* 選択肢の間隔を調整 */
+    .stRadio > div > div {
+        flex: 1;
+        text-align: center;
     }
     </style>
     """, unsafe_allow_html=True)
