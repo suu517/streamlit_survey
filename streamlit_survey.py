@@ -11,203 +11,451 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# セッション状態初期化
-def initialize():
-    if 'page' not in st.session_state:
-        st.session_state.page = 1
-    if 'responses' not in st.session_state:
-        st.session_state.responses = {}
-initialize()
+# セッション状態の初期化
+def initialize_session():
+    defaults = {
+        'page': 'intro',
+        'responses': {},
+        'current_page': 1
+    }
+    for key, val in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = val
 
+initialize_session()
+
+# データファイルパス
 DATA_FILE = "employee_survey_data.csv"
 
+# データ読み込み
 @st.cache_data
 def load_data():
     return pd.read_csv(DATA_FILE) if os.path.exists(DATA_FILE) else pd.DataFrame()
 
-def save_data(record):
-    df = load_data()
-    df = pd.concat([df, pd.DataFrame([record])], ignore_index=True)
+# データ保存
+def save_data(data):
+    if os.path.exists(DATA_FILE):
+        df = load_data()
+        df = pd.concat([df, pd.DataFrame([data])], ignore_index=True)
+    else:
+        df = pd.DataFrame([data])
     df.to_csv(DATA_FILE, index=False)
 
-# 共通選択肢定義
-rating_11 = {i: f"{i}" for i in range(11)}
-options_5 = [
+# 共通評価オプション
+rating_options_11 = {
+    i: f"{i}（{'全く当てはまらない' if i == 0 else '非常に当てはまる' if i == 10 else 'どちらとも言えない' if i == 5 else i}）" if i in [0, 5, 10] else str(i)
+    for i in range(11)
+}
+
+rating_options_5 = [
     "満足していない", "どちらかと言えば満足していない", "どちらとも言えない",
     "どちらかと言えば満足している", "満足している"
 ]
-exp_5 = [
+
+expectation_options_5 = [
     "期待していない", "どちらかと言えば期待していない", "どちらとも言えない",
     "どちらかと言えば期待している", "期待している"
 ]
-contrib_5 = [
+
+contribution_options_5 = [
     "活躍貢献できていない", "どちらかと言えば活躍貢献できていない", "どちらとも言えない",
     "どちらかと言えば活躍貢献できていると感じる", "活躍貢献できていると感じる"
 ]
 
-# デモグラフィック質問定義
+# デモグラフィック質問
 DEMOGRAPHIC_QUESTIONS = {
     "雇用形態": ["正社員", "契約社員", "パートアルバイト", "業務委託", "派遣", "その他"],
     "入社形態": ["新卒入社", "中途入社"],
-    "年齢": (18, 80),
+    "年齢": None,
     "事業部": ["営業部", "マーケティング部", "開発部", "人事部", "経理部", "総務部", "その他"],
     "職種": ["営業", "マーケティング", "エンジニア", "デザイナー", "人事", "経理", "総務", "その他"],
     "役職": ["一般社員", "主任", "係長", "課長", "部長", "役員", "その他"],
-    "残業時間（月平均）": (0, 100),
-    "有給休暇消化率（%）": (0, 100),
-    "入社年": list(range(datetime.now().year, datetime.now().year - 50, -1)),
-    "年収（万円）": None
+    "残業時間": None,
+    "有給休暇消化率": None,
+    "入社年": None,
+    "年収": None
 }
 
-# 総合評価質問定義
+# 評価項目
 EVALUATION_QUESTIONS = [
-    {"label": "総合評価: この会社を友人や家族にどの程度勧めたいか", "options": list(rating_11.keys()), "key": "nps"},
-    {"label": "総合満足度: 現在の環境や人間関係等を含めた満足度", "options": list(rating_11.keys()), "key": "overall_satisfaction"},
-    {"label": "定着意向: この会社でこれからも長く働きたいか", "options": list(rating_11.keys()), "key": "intention_to_stay"},
-    {"label": "活躍貢献度: 現在の所属組織で活躍・貢献できていると感じますか", "options": list(range(1,6)), "key": "contribution", "map": contrib_5}
+    {
+        "question": "総合評価：自分の親しい友人や家族に対して、この会社への転職・就職をどの程度勧めたいと思いますか？",
+        "type": "rating_11",
+        "key": "nps"
+    },
+    {
+        "question": "総合満足度：自社の現在の働く環境や条件、周りの人間関係なども含めあなたはどの程度満足されていますか？",
+        "type": "rating_11",
+        "key": "overall_satisfaction"
+    },
+    {
+        "question": "あなたはこの会社でこれからも長く働きたいとどの程度思われますか",
+        "type": "rating_11",
+        "key": "intention_to_stay"
+    },
+    {
+        "question": "現在の所属組織であなたはどの程度、活躍貢献できていると感じますか？あなたのお気持ちに最も近しいものをお選びください。",
+        "type": "contribution_5",
+        "key": "contribution"
+    }
 ]
 
-# 期待度・満足度カテゴリと質問定義
+# 期待項目と満足項目のカテゴリと質問
 EXPECTATION_SATISFACTION_CATEGORIES = {
     "働き方・時間の柔軟性": {
         "勤務時間の適正": "自分に合った勤務時間で働ける",
         "休暇制度1": "休日休暇がちゃんと取れる",
         "休暇制度2": "有給休暇がちゃんと取れる",
-        "勤務形態の柔軟性": "リモートワーク・時短・フレックス制が使える",
+        "勤務形態の柔軟性": "柔軟な勤務体系（リモートワーク、時短勤務、フレックス制など）のもとで働ける",
         "通勤負荷": "自宅から適切な距離で働ける",
-        "異動転勤希望考慮": "希望を考慮した異動・転勤体制がある",
-        "社内異動制度": "社内異動体制が整備されている"
+        "異動・転勤の柔軟性1": "自身の希望が十分に考慮されるような転勤体制がある",
+        "異動・転勤の柔軟性2": "自身の希望が十分に考慮されるような社内異動体制が整備されている"
     },
     "労働条件・待遇": {
-        "残業対価": "残業した分しっかり給与が支払われる",
-        "業務量適正": "キャパに合った量の仕事量",
-        "身体的負荷": "身体的負荷が少ない仕事内容",
-        "精神的負荷": "精神的負荷が少ない仕事内容",
+        "残業・労働対価": "残業したらその分しっかり給与が支払われる",
+        "業務量適正": "自分のキャパシティーに合った量の仕事で働ける",
+        "身体的負荷": "仕事内容や量に対する身体的な負荷が少ない",
+        "精神的負荷": "仕事内容や量に対する精神的な負荷が少ない",
         "福利厚生": "充実した福利厚生がある"
     },
     "評価制度・成長": {
-        "評価制度": "仕事が正当に評価される",
-        "昇進昇給": "成果に応じた昇給・昇進が望める",
-        "目標設定": "達成可能な目標・ノルマ設定"
+        "評価制度": "自身の行った仕事が正当に評価される",
+        "昇進・昇給": "成果に応じて早期の昇給・昇格が望める",
+        "目標設定": "達成可能性が見込まれる目標やノルマのもとで働く"
     },
     "キャリア・スキル形成": {
-        "専門スキル獲得": "専門的スキルや知識を獲得できる",
-        "汎用スキル獲得": "コミュ力・論理的思考力など汎用スキルを獲得できる",
-        "研修制度": "整った教育・研修制度がある",
-        "キャリアパス設計": "将来のキャリアパスを設計してくれる",
-        "業務マッチング": "やりたい方向性に合った仕事を任せてもらえる",
-        "ロールモデル": "身近にロールモデルとなる人がいる"
+        "スキル獲得（専門）": "専門的なスキルや技術・知識や経験を獲得できる",
+        "スキル獲得（汎用）": "汎用的なスキル（コミュニケーション能力や論理的思考力など）や技術・知識・経験を獲得できる",
+        "教育制度・研修制度": "整った教育体制がある",
+        "キャリアパス": "自分に合った将来のキャリアパスをしっかり設計してくれる",
+        "キャリアの方向性": "将来自分のなりたいもしくはやりたい方向性とマッチした仕事を任せてもらえる",
+        "ロールモデル": "身近にロールモデルとなるような人がいる"
     },
     "仕事内容・やりがい": {
-        "社会貢献": "社会に貢献実感を持てる仕事",
-        "やりがい裁量": "裁量ある仕事を任せてもらえる",
-        "成長実感": "成長実感を得られる仕事",
-        "達成感": "達成感を感じられる仕事",
-        "プロジェクト規模": "大規模プロジェクトに関われる",
-        "強み活用": "自分の強みを活かせる仕事"
+        "誇り・社会貢献1": "誇りやプライドを持てるような仕事内容を提供してくれる",
+        "誇り・社会貢献2": "社会に対して貢献実感を持てるような仕事を任せてもらえる",
+        "やりがい・裁量1": "やりがいを感じられるような仕事を任せてもらえる",
+        "やりがい・裁量2": "自分の判断で進められる裁量のある仕事ができる",
+        "成長実感": "成長実感を感じられるような仕事を任せてもらえる",
+        "達成感": "達成感を感じられるような仕事を任せてもらえる",
+        "プロジェクト規模": "規模の大きなプロジェクトや仕事を任せてもらえる",
+        "強みの活用": "自分の強みを活かせるような仕事を任せてもらえる"
     },
     "人間関係・組織風土": {
-        "人間関係": "人間関係が良好な職場",
-        "ハラスメント対策": "セクハラ・パワハラ防止が徹底されている",
-        "カルチャーフィット": "価値観が合う社風",
-        "風通し": "意見交換が自由な職場",
-        "学習協働": "相互学習・協働文化がある"
+        "人間関係": "人間関係が良好な職場である",
+        "ハラスメント対策": "セクハラやパワハラがないような職場である",
+        "組織文化・カルチャーフィット": "自身の価値観や考え方と共感出来るような会社の社風や文化がある",
+        "組織文化・風通し": "意見や考え方などについて自由に言い合える風通しの良い職場である",
+        "組織文化・学習協働文化": "社内で相互に教えたったり・学び合ったりするような職場である"
     },
     "組織・経営基盤": {
-        "安定性": "安定感のある事業基盤",
-        "戦略性": "信頼できる経営戦略がある",
-        "競合優位性": "競合優位性・独自性を感じる",
-        "ブランド力": "ブランド力・知名度がある",
-        "ミッション共感": "ミッション・バリューに共感できる",
-        "ガバナンス": "法令遵守が徹底されている"
+        "経営の安定性・戦略性1": "事業基盤について安心感のある職場である",
+        "経営の安定性・戦略性2": "信頼できる経営戦略や戦術を実行する職場である",
+        "経営の安定性・戦略性3": "同業他社と比較して事業内容そのものに競合優位性や独自性を感じられる",
+        "ブランド・認知度": "ブランド力や知名度のある職場である",
+        "ミッション・バリューの共感": "会社のミッション・バリューに共感できる",
+        "コンプライアンス・ガバナンス": "法令遵守が整った職場である"
     },
     "働く環境": {
-        "物理環境": "働きやすいオフィス環境",
-        "ダイバーシティ": "女性が働きやすい環境"
+        "物理的環境": "働きやすい仕事環境やオフィス環境である",
+        "ダイバーシティ": "女性が働きやすい職場である"
     }
 }
 
-# 共通CSS
-st.markdown("""
-<style>
-.stApp { max-width:1200px; margin:auto; }
-.stRadio > div { flex-wrap: nowrap; overflow-x: auto; }
-</style>
-""", unsafe_allow_html=True)
+# スクロール処理
+scroll_to_top = lambda: st.markdown('<script>window.scrollTo(0, 0);</script>', unsafe_allow_html=True)
 
-# 各ページ表示
-
-def page_intro():
+# イントロページ
+def show_intro():
+    scroll_to_top()
     st.title("従業員満足度・期待度調査")
-    st.write("所要時間約15分。匿名で回答されます。")
-    if st.button("アンケート開始"): st.session_state.page = 2
+    st.markdown("""
+    このアンケートは、従業員の皆様の満足度と期待度を調査し、より良い職場環境づくりに役立てることを目的としています。
+    
+    各質問について、**現在の満足度**と**今後の期待度**の両方をお答えいただきます。
+    回答は匿名で処理され、個人が特定されることはありません。
+    
+    アンケートの所要時間は約15分です。ご協力をお願いいたします。
+    """)
+    
+    if st.button("アンケートを開始する", type="primary"):
+        st.session_state.current_page = 2
+        st.experimental_rerun()
 
-
-def page_demographics():
-    st.header("基本情報入力")
-    cols = st.columns(3)
-    for i, (q, opts) in enumerate(DEMOGRAPHIC_QUESTIONS.items()):
-        with cols[i % 3]:
-            if opts is None:
-                if '年収' in q:
-                    st.session_state.responses[q] = st.text_input(q, help="万円単位、半角数字で")
-                else:
-                    st.session_state.responses[q] = st.number_input(q, min_value=opts[0], max_value=opts[1], value=opts[0] if isinstance(opts, tuple) else 0)
+# デモグラフィックページ
+def show_demographics():
+    scroll_to_top()
+    st.title("基本情報")
+    st.markdown("以下の基本情報をご入力ください。")
+    
+    with st.form("demographics_form"):
+        for question, options in DEMOGRAPHIC_QUESTIONS.items():
+            if options is None:
+                if question == "年齢":
+                    st.session_state.responses[question] = st.number_input(
+                        f"{question}",
+                        min_value=18,
+                        max_value=80,
+                        value=30,
+                        step=1
+                    )
+                elif question == "残業時間":
+                    st.session_state.responses[question] = st.number_input(
+                        f"{question}（月平均時間）",
+                        min_value=0,
+                        max_value=100,
+                        value=20,
+                        step=1
+                    )
+                elif question == "有給休暇消化率":
+                    st.session_state.responses[question] = st.slider(
+                        f"{question}（%）",
+                        min_value=0,
+                        max_value=100,
+                        value=50,
+                        step=5
+                    )
+                elif question == "入社年":
+                    current_year = datetime.now().year
+                    st.session_state.responses[question] = st.selectbox(
+                        f"{question}",
+                        options=list(range(current_year, current_year - 50, -1))
+                    )
+                elif question == "年収":
+                    st.session_state.responses[question] = st.text_input(
+                        f"{question}（万円）",
+                        value="500",
+                        help="半角数字で入力してください"
+                    )
             else:
-                st.session_state.responses[q] = st.selectbox(q, options=opts)
-    if st.button("次へ"): st.session_state.page = 3
+                st.session_state.responses[question] = st.selectbox(
+                    f"{question}",
+                    options=options
+                )
+        
+        submit_button = st.form_submit_button("次へ進む", type="primary")
+        
+        if submit_button:
+            st.session_state.current_page = 3
+            st.experimental_rerun()
 
+# 評価項目ページ
+def show_evaluation():
+    scroll_to_top()
+    st.title("総合評価")
+    st.markdown("以下の質問について、あなたの評価をお聞かせください。")
+    
+    with st.form("evaluation_form"):
+        # 11段階評価の質問
+        st.subheader("総合評価項目")
+        
+        # 11段階評価の説明
+        st.markdown("### 選択肢の説明")
+        st.write("0: 全く当てはまらない")
+        st.write("5: どちらとも言えない")
+        st.write("10: 非常に当てはまる")
+        
+        for item in EVALUATION_QUESTIONS:
+            if item['type'] == 'rating_11':
+                st.markdown(f"**{item['question']}**")
+                
+                # ラジオボタンを作成
+                value = st.radio(
+                    "選択してください",
+                    options=list(range(11)),
+                    format_func=lambda x: rating_options_11[x],
+                    horizontal=True,
+                    key=f"eval_{item['key']}",
+                    label_visibility="collapsed"
+                )
+                
+                # 選択された値を保存
+                st.session_state.responses[item['key']] = value
+                
+                st.divider()
+        
+        # 活躍貢献度の質問（5段階評価）
+        st.subheader("活躍貢献度")
+        
+        # 選択肢の説明を先に表示
+        st.markdown("### 選択肢の説明")
+        for i, option in enumerate(contribution_options_5):
+            st.write(f"{i+1}. {option}")
+        
+        # 質問と選択肢
+        for item in EVALUATION_QUESTIONS:
+            if item['type'] == 'contribution_5':
+                st.markdown(f"**{item['question']}**")
+                
+                # ラジオボタンを作成
+                value = st.radio(
+                    "選択してください",
+                    options=list(range(1, 6)),
+                    format_func=lambda x: f"{x}",
+                    horizontal=True,
+                    key=f"eval_{item['key']}",
+                    label_visibility="collapsed"
+                )
+                
+                # 選択された値を保存
+                st.session_state.responses[item['key']] = value
+        
+        submit_button = st.form_submit_button("次へ進む", type="primary")
+        
+        if submit_button:
+            st.session_state.current_page = 4
+            st.experimental_rerun()
 
-def page_evaluation():
-    st.header("総合評価")
-    st.write("各質問について、以下のスライダーまたは選択肢で回答してください。")
-    for item in EVALUATION_QUESTIONS:
-        st.subheader(item['label'])
-        if item.get('map'):
-            sel = st.radio("", options=item['map'], horizontal=True)
-            st.session_state.responses[item['key']] = item['map'].index(sel) + 1
-        else:
-            st.slider("", min_value=min(item['options']), max_value=max(item['options']), value=min(item['options']), key=item['key'])
-    if st.button("次へ"): st.session_state.page = 4
+# 期待項目ページ
+def show_expectation():
+    scroll_to_top()
+    st.title("期待項目の確認")
+    st.markdown("以下の項目について、今の会社にどの程度**期待**しているかを率直にお答えください。")
+    
+    # 選択肢の説明を先に表示
+    st.markdown("### 選択肢の説明")
+    for i, option in enumerate(expectation_options_5):
+        st.write(f"{i+1}. {option}")
+    
+    with st.form("expectation_form"):
+        for category, questions in EXPECTATION_SATISFACTION_CATEGORIES.items():
+            st.header(category)
+            
+            # 各質問項目
+            for q_key, question in questions.items():
+                st.markdown(f"**{question}**")
+                
+                # ラジオボタンを作成
+                value = st.radio(
+                    f"期待度: {question}",
+                    options=list(range(1, 6)),
+                    format_func=lambda x: f"{x}",
+                    horizontal=True,
+                    key=f"exp_{q_key}",
+                    label_visibility="collapsed"
+                )
+                
+                # 選択された値を保存
+                st.session_state.responses[f"expectation_{q_key}"] = value
+                
+                st.divider()
+        
+        submit_button = st.form_submit_button("次へ進む", type="primary")
+        
+        if submit_button:
+            st.session_state.current_page = 5
+            st.experimental_rerun()
 
+# 満足項目ページ
+def show_satisfaction():
+    scroll_to_top()
+    st.title("満足項目の確認")
+    st.markdown("以下の項目について、今の会社にどの程度**満足**しているかを率直にお答えください。")
+    
+    # 選択肢の説明を先に表示
+    st.markdown("### 選択肢の説明")
+    for i, option in enumerate(rating_options_5):
+        st.write(f"{i+1}. {option}")
+    
+    with st.form("satisfaction_form"):
+        for category, questions in EXPECTATION_SATISFACTION_CATEGORIES.items():
+            st.header(category)
+            
+            # 各質問項目
+            for q_key, question in questions.items():
+                st.markdown(f"**{question}**")
+                
+                # ラジオボタンを作成
+                value = st.radio(
+                    f"満足度: {question}",
+                    options=list(range(1, 6)),
+                    format_func=lambda x: f"{x}",
+                    horizontal=True,
+                    key=f"sat_{q_key}",
+                    label_visibility="collapsed"
+                )
+                
+                # 選択された値を保存
+                st.session_state.responses[f"satisfaction_{q_key}"] = value
+                
+                st.divider()
+        
+        submit_button = st.form_submit_button("回答を送信する", type="primary")
+        
+        if submit_button:
+            # タイムスタンプを追加
+            st.session_state.responses['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            # データを保存
+            save_data(st.session_state.responses)
+            
+            # サンキューページへ
+            st.session_state.current_page = 6
+            st.experimental_rerun()
 
-def page_expectation():
-    st.header("期待度調査")
-    for cat, qs in EXPECTATION_SATISFACTION_CATEGORIES.items():
-        with st.expander(cat):
-            for k, label in qs.items():
-                st.session_state.responses[f"exp_{k}"] = st.radio(label, options=exp_5, horizontal=True)
-    if st.button("次へ"): st.session_state.page = 5
+# サンキューページ
+def show_thank_you():
+    scroll_to_top()
+    st.title("ご回答ありがとうございました")
+    st.markdown("""
+    アンケートへのご協力ありがとうございました。
+    いただいた回答は、より良い職場環境づくりのために活用させていただきます。
+    """)
+    
+    if st.button("新しいアンケートを開始", type="primary"):
+        # セッション状態をリセット
+        st.session_state.responses = {}
+        st.session_state.current_page = 1
+        st.experimental_rerun()
 
+# メインアプリケーション
+def main():
+    # カスタムCSS
+    st.markdown("""
+    <style>
+    .stApp {
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+    .stRadio > div {
+        flex-direction: row;
+        justify-content: space-between;
+    }
+    .stRadio label {
+        margin-right: 0;
+    }
+    /* 選択肢の数字を強調表示 */
+    .stRadio label span:first-child {
+        font-weight: bold;
+        font-size: 1.1em;
+    }
+    /* 選択肢の間隔を調整 */
+    .stRadio > div > div {
+        flex: 1;
+        text-align: center;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # プログレスバーの表示（ページ1は除く）
+    if st.session_state.current_page > 1 and st.session_state.current_page < 6:
+        progress_value = (st.session_state.current_page - 1) / 5
+        st.progress(progress_value)
+        st.write(f"ページ {st.session_state.current_page - 1}/5")
+    
+    # ページ表示
+    if st.session_state.current_page == 1:
+        show_intro()
+    elif st.session_state.current_page == 2:
+        show_demographics()
+    elif st.session_state.current_page == 3:
+        show_evaluation()
+    elif st.session_state.current_page == 4:
+        show_expectation()
+    elif st.session_state.current_page == 5:
+        show_satisfaction()
+    elif st.session_state.current_page == 6:
+        show_thank_you()
 
-def page_satisfaction():
-    st.header("満足度調査")
-    for cat, qs in EXPECTATION_SATISFACTION_CATEGORIES.items():
-        with st.expander(cat):
-            for k, label in qs.items():
-                st.session_state.responses[f"sat_{k}"] = st.radio(label, options=options_5, horizontal=True)
-    if st.button("回答を送信"): 
-        st.session_state.responses['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        save_data(st.session_state.responses)
-        st.session_state.page = 6
-
-
-def page_thanks():
-    st.success("ご回答ありがとうございました！")
-    if st.button("新しいアンケート"): 
-        st.session_state.responses.clear()
-        st.session_state.page = 1
-
-# メイン制御
-if st.session_state.page == 1:
-    page_intro()
-elif st.session_state.page == 2:
-    page_demographics()
-elif st.session_state.page == 3:
-    page_evaluation()
-elif st.session_state.page == 4:
-    page_expectation()
-elif st.session_state.page == 5:
-    page_satisfaction()
-else:
-    page_thanks()
+if __name__ == "__main__":
+    main()
