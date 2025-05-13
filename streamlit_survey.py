@@ -12,90 +12,72 @@ st.set_page_config(
 )
 
 # セッション状態の初期化
-if 'page' not in st.session_state:
-    st.session_state.page = 'intro'
-if 'responses' not in st.session_state:
-    st.session_state.responses = {}
-if 'current_page' not in st.session_state:
-    st.session_state.current_page = 1
+def initialize_session():
+    defaults = {
+        'page': 'intro',
+        'responses': {},
+        'current_page': 1
+    }
+    for key, val in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = val
 
-# データファイルのパス
+initialize_session()
+
+# データファイルパス
 DATA_FILE = "employee_survey_data.csv"
 
-# データファイルの読み込み
+# データ読み込み
+@st.cache_data
 def load_data():
-    if os.path.exists(DATA_FILE):
-        return pd.read_csv(DATA_FILE)
-    else:
-        return pd.DataFrame()
+    return pd.read_csv(DATA_FILE) if os.path.exists(DATA_FILE) else pd.DataFrame()
 
-# データの保存
+# データ保存
 def save_data(data):
     if os.path.exists(DATA_FILE):
-        existing_data = pd.read_csv(DATA_FILE)
-        updated_data = pd.concat([existing_data, pd.DataFrame([data])], ignore_index=True)
-        updated_data.to_csv(DATA_FILE, index=False)
+        df = load_data()
+        df = pd.concat([df, pd.DataFrame([data])], ignore_index=True)
     else:
-        pd.DataFrame([data]).to_csv(DATA_FILE, index=False)
+        df = pd.DataFrame([data])
+    df.to_csv(DATA_FILE, index=False)
 
-# 11段階評価のオプション（0-10）
+# 共通評価オプション
 rating_options_11 = {
-    0: "0（全く当てはまらない）",
-    1: "1",
-    2: "2",
-    3: "3",
-    4: "4",
-    5: "5（どちらとも言えない）",
-    6: "6",
-    7: "7",
-    8: "8",
-    9: "9",
-    10: "10（非常に当てはまる）"
+    i: f"{i}（{'全く当てはまらない' if i == 0 else '非常に当てはまる' if i == 10 else 'どちらとも言えない' if i == 5 else i}）" if i in [0, 5, 10] else str(i)
+    for i in range(11)
 }
 
-# 5段階評価のオプション
 rating_options_5 = [
-    "満足していない",
-    "どちらかと言えば満足していない",
-    "どちらとも言えない",
-    "どちらかと言えば満足している",
-    "満足している"
+    "満足していない", "どちらかと言えば満足していない", "どちらとも言えない",
+    "どちらかと言えば満足している", "満足している"
 ]
 
-# 期待度の5段階評価のオプション
 expectation_options_5 = [
-    "期待していない",
-    "どちらかと言えば期待していない",
-    "どちらとも言えない",
-    "どちらかと言えば期待している",
-    "期待している"
+    "期待していない", "どちらかと言えば期待していない", "どちらとも言えない",
+    "どちらかと言えば期待している", "期待している"
 ]
 
-# 活躍貢献度の5段階評価のオプション
 contribution_options_5 = [
-    "活躍貢献できていない",
-    "どちらかと言えば活躍貢献できていない",
-    "どちらとも言えない",
-    "どちらかと言えば活躍貢献できていると感じる",
-    "活躍貢献できていると感じる"
+    "活躍貢献できていない", "どちらかと言えば活躍貢献できていない", "どちらとも言えない",
+    "どちらかと言えば活躍貢献できていると感じる", "活躍貢献できていると感じる"
 ]
 
-# デモグラフィック項目
-demographic_questions = {
+# デモグラフィック質問
+DEMOGRAPHIC_QUESTIONS = {
     "雇用形態": ["正社員", "契約社員", "パートアルバイト", "業務委託", "派遣", "その他"],
     "入社形態": ["新卒入社", "中途入社"],
-    "年齢": None,  # 数値入力
+    "年齢": None,
     "事業部": ["営業部", "マーケティング部", "開発部", "人事部", "経理部", "総務部", "その他"],
     "職種": ["営業", "マーケティング", "エンジニア", "デザイナー", "人事", "経理", "総務", "その他"],
     "役職": ["一般社員", "主任", "係長", "課長", "部長", "役員", "その他"],
-    "残業時間": None,  # 数値入力
-    "有給休暇消化率": None,  # 数値入力
-    "入社年": None,  # 数値入力
-    "年収": None,  # 数値入力
+    "残業時間": None,
+    "有給休暇消化率": None,
+    "入社年": None,
+    "年収": None
 }
 
 # 評価項目
-evaluation_questions = [
+EVALUATION_QUESTIONS = [
     {
         "question": "総合評価：自分の親しい友人や家族に対して、この会社への転職・就職をどの程度勧めたいと思いますか？",
         "type": "rating_11",
@@ -119,7 +101,7 @@ evaluation_questions = [
 ]
 
 # 期待項目と満足項目のカテゴリと質問
-expectation_satisfaction_categories = {
+EXPECTATION_SATISFACTION_CATEGORIES = {
     "働き方・時間の柔軟性": {
         "勤務時間の適正": "自分に合った勤務時間で働ける",
         "休暇制度1": "休日休暇がちゃんと取れる",
@@ -180,14 +162,8 @@ expectation_satisfaction_categories = {
     }
 }
 
-# ページ遷移時に一番上にスクロールする関数
-def scroll_to_top():
-    js = '''
-    <script>
-        window.scrollTo(0, 0);
-    </script>
-    '''
-    st.markdown(js, unsafe_allow_html=True)
+# スクロール処理
+scroll_to_top = lambda: st.markdown('<script>window.scrollTo(0, 0);</script>', unsafe_allow_html=True)
 
 # イントロページ
 def show_intro():
@@ -213,9 +189,8 @@ def show_demographics():
     st.markdown("以下の基本情報をご入力ください。")
     
     with st.form("demographics_form"):
-        for question, options in demographic_questions.items():
+        for question, options in DEMOGRAPHIC_QUESTIONS.items():
             if options is None:
-                # 数値入力の場合
                 if question == "年齢":
                     st.session_state.responses[question] = st.number_input(
                         f"{question}",
@@ -247,14 +222,12 @@ def show_demographics():
                         options=list(range(current_year, current_year - 50, -1))
                     )
                 elif question == "年収":
-                    # 年収を半角数字で直接入力
                     st.session_state.responses[question] = st.text_input(
                         f"{question}（万円）",
                         value="500",
                         help="半角数字で入力してください"
                     )
             else:
-                # 選択肢がある場合
                 st.session_state.responses[question] = st.selectbox(
                     f"{question}",
                     options=options
@@ -266,14 +239,14 @@ def show_demographics():
             st.session_state.current_page = 3
             st.experimental_rerun()
 
-# 評価項目ページ（リッカート尺度形式）
+# 評価項目ページ
 def show_evaluation():
     scroll_to_top()
     st.title("総合評価")
     st.markdown("以下の質問について、あなたの評価をお聞かせください。")
     
     with st.form("evaluation_form"):
-        # 11段階評価の質問（リッカート尺度形式）
+        # 11段階評価の質問
         st.subheader("総合評価項目")
         
         # 11段階評価の説明
@@ -282,8 +255,7 @@ def show_evaluation():
         st.write("5: どちらとも言えない")
         st.write("10: 非常に当てはまる")
         
-        # 11段階評価の質問
-        for item in evaluation_questions:
+        for item in EVALUATION_QUESTIONS:
             if item['type'] == 'rating_11':
                 st.markdown(f"**{item['question']}**")
                 
@@ -291,7 +263,7 @@ def show_evaluation():
                 value = st.radio(
                     "選択してください",
                     options=list(range(11)),
-                    format_func=lambda x: f"{x}",
+                    format_func=lambda x: rating_options_11[x],
                     horizontal=True,
                     key=f"eval_{item['key']}",
                     label_visibility="collapsed"
@@ -311,7 +283,7 @@ def show_evaluation():
             st.write(f"{i+1}. {option}")
         
         # 質問と選択肢
-        for item in evaluation_questions:
+        for item in EVALUATION_QUESTIONS:
             if item['type'] == 'contribution_5':
                 st.markdown(f"**{item['question']}**")
                 
@@ -334,7 +306,7 @@ def show_evaluation():
             st.session_state.current_page = 4
             st.experimental_rerun()
 
-# 期待項目ページ（リッカート尺度形式）
+# 期待項目ページ
 def show_expectation():
     scroll_to_top()
     st.title("期待項目の確認")
@@ -346,7 +318,7 @@ def show_expectation():
         st.write(f"{i+1}. {option}")
     
     with st.form("expectation_form"):
-        for category, questions in expectation_satisfaction_categories.items():
+        for category, questions in EXPECTATION_SATISFACTION_CATEGORIES.items():
             st.header(category)
             
             # 各質問項目
@@ -374,7 +346,7 @@ def show_expectation():
             st.session_state.current_page = 5
             st.experimental_rerun()
 
-# 満足項目ページ（リッカート尺度形式）
+# 満足項目ページ
 def show_satisfaction():
     scroll_to_top()
     st.title("満足項目の確認")
@@ -386,7 +358,7 @@ def show_satisfaction():
         st.write(f"{i+1}. {option}")
     
     with st.form("satisfaction_form"):
-        for category, questions in expectation_satisfaction_categories.items():
+        for category, questions in EXPECTATION_SATISFACTION_CATEGORIES.items():
             st.header(category)
             
             # 各質問項目
