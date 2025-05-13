@@ -43,8 +43,7 @@ def save_data(data):
 
 # 共通評価オプション
 rating_options_11 = {
-    i: f"{i}（{'全く当てはまらない' if i == 0 else '非常に当てはまる' if i == 10 else 'どちらとも言えない' if i == 5 else i}）" if i in [0, 5, 10] else str(i)
-    for i in range(11)
+    i: f"{i}" for i in range(11)
 }
 
 rating_options_5 = [
@@ -245,66 +244,100 @@ def show_evaluation():
     st.title("総合評価")
     st.markdown("以下の質問について、あなたの評価をお聞かせください。")
     
-    with st.form("evaluation_form"):
-        # 11段階評価の質問
-        st.subheader("総合評価項目")
+    # 11段階評価の説明をカード形式で表示
+    with st.container():
+        st.markdown("""
+        <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
+            <h3 style="margin-top: 0;">選択肢の説明</h3>
+            <div style="display: flex; justify-content: space-between;">
+                <div>0: 全く当てはまらない</div>
+                <div>5: どちらとも言えない</div>
+                <div>10: 非常に当てはまる</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # 11段階評価の質問（フォームの外で処理）
+    st.markdown("## 総合評価項目")
+    
+    for item in EVALUATION_QUESTIONS:
+        if item['type'] == 'rating_11':
+            st.markdown(f"### {item['question']}")
+            
+            # 選択肢を水平に配置
+            cols = st.columns(11)
+            for i in range(11):
+                with cols[i]:
+                    # セッション状態から現在の選択を取得
+                    is_selected = st.session_state.responses.get(item['key']) == i
+                    
+                    # ボタンのスタイルを選択状態に応じて変更
+                    button_label = f"{i}"
+                    button_type = "primary" if is_selected else "secondary"
+                    
+                    # ボタンをクリックしたときの処理
+                    if st.button(button_label, key=f"btn_{item['key']}_{i}", type=button_type):
+                        st.session_state.responses[item['key']] = i
+                        st.experimental_rerun()
+            
+            # 特定の値の下に説明を表示
+            cols = st.columns(11)
+            with cols[0]:
+                st.markdown("<div style='text-align: center; font-size: 0.8em;'>全く当てはまらない</div>", unsafe_allow_html=True)
+            with cols[5]:
+                st.markdown("<div style='text-align: center; font-size: 0.8em;'>どちらとも言えない</div>", unsafe_allow_html=True)
+            with cols[10]:
+                st.markdown("<div style='text-align: center; font-size: 0.8em;'>非常に当てはまる</div>", unsafe_allow_html=True)
+            
+            st.markdown("<hr>", unsafe_allow_html=True)
+    
+    # 活躍貢献度の説明
+    st.markdown("## 活躍貢献度")
+    
+    # 選択肢の説明をカード形式で表示
+    with st.container():
+        st.markdown("""
+        <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
+            <h3 style="margin-top: 0;">選択肢の説明</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+        """, unsafe_allow_html=True)
         
-        # 11段階評価の説明
-        st.markdown("### 選択肢の説明")
-        st.write("0: 全く当てはまらない")
-        st.write("5: どちらとも言えない")
-        st.write("10: 非常に当てはまる")
-        
-        for item in EVALUATION_QUESTIONS:
-            if item['type'] == 'rating_11':
-                st.markdown(f"**{item['question']}**")
-                
-                # ラジオボタンを作成
-                value = st.radio(
-                    "選択してください",
-                    options=list(range(11)),
-                    format_func=lambda x: rating_options_11[x],
-                    horizontal=True,
-                    key=f"eval_{item['key']}",
-                    label_visibility="collapsed"
-                )
-                
-                # 選択された値を保存
-                st.session_state.responses[item['key']] = value
-                
-                st.divider()
-        
-        # 活躍貢献度の質問（5段階評価）
-        st.subheader("活躍貢献度")
-        
-        # 選択肢の説明を先に表示
-        st.markdown("### 選択肢の説明")
         for i, option in enumerate(contribution_options_5):
-            st.write(f"{i+1}. {option}")
+            st.markdown(f"<div>{i+1}: {option}</div>", unsafe_allow_html=True)
         
-        # 質問と選択肢
-        for item in EVALUATION_QUESTIONS:
-            if item['type'] == 'contribution_5':
-                st.markdown(f"**{item['question']}**")
-                
-                # ラジオボタンを作成
-                value = st.radio(
-                    "選択してください",
-                    options=list(range(1, 6)),
-                    format_func=lambda x: f"{x}",
-                    horizontal=True,
-                    key=f"eval_{item['key']}",
-                    label_visibility="collapsed"
-                )
-                
-                # 選択された値を保存
-                st.session_state.responses[item['key']] = value
-        
-        submit_button = st.form_submit_button("次へ進む", type="primary")
-        
-        if submit_button:
-            st.session_state.current_page = 4
-            st.experimental_rerun()
+        st.markdown("</div></div>", unsafe_allow_html=True)
+    
+    # 活躍貢献度の質問（フォームの外で処理）
+    for item in EVALUATION_QUESTIONS:
+        if item['type'] == 'contribution_5':
+            st.markdown(f"### {item['question']}")
+            
+            # 選択肢を水平に配置
+            cols = st.columns(5)
+            for i in range(1, 6):
+                with cols[i-1]:
+                    # セッション状態から現在の選択を取得
+                    is_selected = st.session_state.responses.get(item['key']) == i
+                    
+                    # ボタンのスタイルを選択状態に応じて変更
+                    button_label = f"{i}"
+                    button_type = "primary" if is_selected else "secondary"
+                    
+                    # ボタンをクリックしたときの処理
+                    if st.button(button_label, key=f"btn_{item['key']}_{i}", type=button_type):
+                        st.session_state.responses[item['key']] = i
+                        st.experimental_rerun()
+            
+            # 各ボタンの下に説明を表示
+            cols = st.columns(5)
+            for i, option in enumerate(contribution_options_5):
+                with cols[i]:
+                    st.markdown(f"<div style='text-align: center; font-size: 0.8em;'>{option}</div>", unsafe_allow_html=True)
+    
+    # 次へ進むボタン（フォームの外）
+    if st.button("次へ進む", type="primary", key="next_button_eval"):
+        st.session_state.current_page = 4
+        st.experimental_rerun()
 
 # 期待項目ページ
 def show_expectation():
@@ -312,39 +345,55 @@ def show_expectation():
     st.title("期待項目の確認")
     st.markdown("以下の項目について、今の会社にどの程度**期待**しているかを率直にお答えください。")
     
-    # 選択肢の説明を先に表示
-    st.markdown("### 選択肢の説明")
-    for i, option in enumerate(expectation_options_5):
-        st.write(f"{i+1}. {option}")
+    # 選択肢の説明をカード形式で表示
+    with st.container():
+        st.markdown("""
+        <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
+            <h3 style="margin-top: 0;">選択肢の説明</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+        """, unsafe_allow_html=True)
+        
+        for i, option in enumerate(expectation_options_5):
+            st.markdown(f"<div>{i+1}: {option}</div>", unsafe_allow_html=True)
+        
+        st.markdown("</div></div>", unsafe_allow_html=True)
     
-    with st.form("expectation_form"):
-        for category, questions in EXPECTATION_SATISFACTION_CATEGORIES.items():
-            st.header(category)
+    # カテゴリごとに質問を表示
+    for category, questions in EXPECTATION_SATISFACTION_CATEGORIES.items():
+        st.markdown(f"## {category}")
+        
+        # 各質問項目
+        for q_key, question in questions.items():
+            st.markdown(f"### {question}")
             
-            # 各質問項目
-            for q_key, question in questions.items():
-                st.markdown(f"**{question}**")
-                
-                # ラジオボタンを作成
-                value = st.radio(
-                    f"期待度: {question}",
-                    options=list(range(1, 6)),
-                    format_func=lambda x: f"{x}",
-                    horizontal=True,
-                    key=f"exp_{q_key}",
-                    label_visibility="collapsed"
-                )
-                
-                # 選択された値を保存
-                st.session_state.responses[f"expectation_{q_key}"] = value
-                
-                st.divider()
-        
-        submit_button = st.form_submit_button("次へ進む", type="primary")
-        
-        if submit_button:
-            st.session_state.current_page = 5
-            st.experimental_rerun()
+            # 選択肢を水平に配置
+            cols = st.columns(5)
+            for i in range(1, 6):
+                with cols[i-1]:
+                    # セッション状態から現在の選択を取得
+                    is_selected = st.session_state.responses.get(f"expectation_{q_key}") == i
+                    
+                    # ボタンのスタイルを選択状態に応じて変更
+                    button_label = f"{i}"
+                    button_type = "primary" if is_selected else "secondary"
+                    
+                    # ボタンをクリックしたときの処理
+                    if st.button(button_label, key=f"btn_exp_{q_key}_{i}", type=button_type):
+                        st.session_state.responses[f"expectation_{q_key}"] = i
+                        st.experimental_rerun()
+            
+            # 各ボタンの下に説明を表示
+            cols = st.columns(5)
+            for i, option in enumerate(expectation_options_5):
+                with cols[i]:
+                    st.markdown(f"<div style='text-align: center; font-size: 0.8em;'>{option}</div>", unsafe_allow_html=True)
+            
+            st.markdown("<hr>", unsafe_allow_html=True)
+    
+    # 次へ進むボタン
+    if st.button("次へ進む", type="primary", key="next_button_exp"):
+        st.session_state.current_page = 5
+        st.experimental_rerun()
 
 # 満足項目ページ
 def show_satisfaction():
@@ -352,46 +401,62 @@ def show_satisfaction():
     st.title("満足項目の確認")
     st.markdown("以下の項目について、今の会社にどの程度**満足**しているかを率直にお答えください。")
     
-    # 選択肢の説明を先に表示
-    st.markdown("### 選択肢の説明")
-    for i, option in enumerate(rating_options_5):
-        st.write(f"{i+1}. {option}")
+    # 選択肢の説明をカード形式で表示
+    with st.container():
+        st.markdown("""
+        <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
+            <h3 style="margin-top: 0;">選択肢の説明</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+        """, unsafe_allow_html=True)
+        
+        for i, option in enumerate(rating_options_5):
+            st.markdown(f"<div>{i+1}: {option}</div>", unsafe_allow_html=True)
+        
+        st.markdown("</div></div>", unsafe_allow_html=True)
     
-    with st.form("satisfaction_form"):
-        for category, questions in EXPECTATION_SATISFACTION_CATEGORIES.items():
-            st.header(category)
-            
-            # 各質問項目
-            for q_key, question in questions.items():
-                st.markdown(f"**{question}**")
-                
-                # ラジオボタンを作成
-                value = st.radio(
-                    f"満足度: {question}",
-                    options=list(range(1, 6)),
-                    format_func=lambda x: f"{x}",
-                    horizontal=True,
-                    key=f"sat_{q_key}",
-                    label_visibility="collapsed"
-                )
-                
-                # 選択された値を保存
-                st.session_state.responses[f"satisfaction_{q_key}"] = value
-                
-                st.divider()
+    # カテゴリごとに質問を表示
+    for category, questions in EXPECTATION_SATISFACTION_CATEGORIES.items():
+        st.markdown(f"## {category}")
         
-        submit_button = st.form_submit_button("回答を送信する", type="primary")
+        # 各質問項目
+        for q_key, question in questions.items():
+            st.markdown(f"### {question}")
+            
+            # 選択肢を水平に配置
+            cols = st.columns(5)
+            for i in range(1, 6):
+                with cols[i-1]:
+                    # セッション状態から現在の選択を取得
+                    is_selected = st.session_state.responses.get(f"satisfaction_{q_key}") == i
+                    
+                    # ボタンのスタイルを選択状態に応じて変更
+                    button_label = f"{i}"
+                    button_type = "primary" if is_selected else "secondary"
+                    
+                    # ボタンをクリックしたときの処理
+                    if st.button(button_label, key=f"btn_sat_{q_key}_{i}", type=button_type):
+                        st.session_state.responses[f"satisfaction_{q_key}"] = i
+                        st.experimental_rerun()
+            
+            # 各ボタンの下に説明を表示
+            cols = st.columns(5)
+            for i, option in enumerate(rating_options_5):
+                with cols[i]:
+                    st.markdown(f"<div style='text-align: center; font-size: 0.8em;'>{option}</div>", unsafe_allow_html=True)
+            
+            st.markdown("<hr>", unsafe_allow_html=True)
+    
+    # 送信ボタン
+    if st.button("回答を送信する", type="primary", key="submit_button_sat"):
+        # タイムスタンプを追加
+        st.session_state.responses['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        if submit_button:
-            # タイムスタンプを追加
-            st.session_state.responses['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            
-            # データを保存
-            save_data(st.session_state.responses)
-            
-            # サンキューページへ
-            st.session_state.current_page = 6
-            st.experimental_rerun()
+        # データを保存
+        save_data(st.session_state.responses)
+        
+        # サンキューページへ
+        st.session_state.current_page = 6
+        st.experimental_rerun()
 
 # サンキューページ
 def show_thank_you():
@@ -417,22 +482,54 @@ def main():
         max-width: 1200px;
         margin: 0 auto;
     }
-    .stRadio > div {
-        flex-direction: row;
-        justify-content: space-between;
+    
+    /* カード風のスタイル */
+    .card {
+        background-color: white;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
     }
-    .stRadio label {
-        margin-right: 0;
+    
+    /* 質問のスタイル */
+    h3 {
+        margin-top: 1.5rem;
+        margin-bottom: 1rem;
     }
-    /* 選択肢の数字を強調表示 */
-    .stRadio label span:first-child {
-        font-weight: bold;
-        font-size: 1.1em;
+    
+    /* ボタンのスタイル調整 */
+    .stButton button {
+        width: 100%;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
-    /* 選択肢の間隔を調整 */
-    .stRadio > div > div {
-        flex: 1;
-        text-align: center;
+    
+    /* 選択されたボタンのスタイル */
+    .stButton button[data-baseweb="button"][kind="primary"] {
+        background-color: #1E88E5;
+    }
+    
+    /* 区切り線のスタイル */
+    hr {
+        margin: 2rem 0;
+        border: 0;
+        border-top: 1px solid #e0e0e0;
+    }
+    
+    /* プログレスバーのスタイル */
+    .stProgress > div > div {
+        background-color: #1E88E5;
+    }
+    
+    /* モバイル対応 */
+    @media (max-width: 768px) {
+        .stButton button {
+            font-size: 0.8rem;
+            padding: 0.3rem;
+        }
     }
     </style>
     """, unsafe_allow_html=True)
