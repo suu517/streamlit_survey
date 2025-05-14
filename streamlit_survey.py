@@ -179,7 +179,7 @@ def show_intro():
     
     if st.button("アンケートを開始する", type="primary"):
         st.session_state.current_page = 2
-        st.experimental_rerun()
+        st.rerun()
 
 # デモグラフィックページ
 def show_demographics():
@@ -236,7 +236,7 @@ def show_demographics():
         
         if submit_button:
             st.session_state.current_page = 3
-            st.experimental_rerun()
+            st.rerun()
 
 # 評価項目ページ
 def show_evaluation():
@@ -278,7 +278,7 @@ def show_evaluation():
                     # ボタンをクリックしたときの処理
                     if st.button(button_label, key=f"btn_{item['key']}_{i}", type=button_type):
                         st.session_state.responses[item['key']] = i
-                        st.experimental_rerun()
+                        st.rerun()
             
             # 特定の値の下に説明を表示
             cols = st.columns(11)
@@ -326,7 +326,7 @@ def show_evaluation():
                     # ボタンをクリックしたときの処理
                     if st.button(button_label, key=f"btn_{item['key']}_{i}", type=button_type):
                         st.session_state.responses[item['key']] = i
-                        st.experimental_rerun()
+                        st.rerun()
             
             # 各ボタンの下に説明を表示
             cols = st.columns(5)
@@ -337,7 +337,7 @@ def show_evaluation():
     # 次へ進むボタン（フォームの外）
     if st.button("次へ進む", type="primary", key="next_button_eval"):
         st.session_state.current_page = 4
-        st.experimental_rerun()
+        st.rerun()
 
 # 期待項目ページ
 def show_expectation():
@@ -380,7 +380,7 @@ def show_expectation():
                     # ボタンをクリックしたときの処理
                     if st.button(button_label, key=f"btn_exp_{q_key}_{i}", type=button_type):
                         st.session_state.responses[f"expectation_{q_key}"] = i
-                        st.experimental_rerun()
+                        st.rerun()
             
             # 各ボタンの下に説明を表示
             cols = st.columns(5)
@@ -393,7 +393,7 @@ def show_expectation():
     # 次へ進むボタン
     if st.button("次へ進む", type="primary", key="next_button_exp"):
         st.session_state.current_page = 5
-        st.experimental_rerun()
+        st.rerun()
 
 # 満足項目ページ
 def show_satisfaction():
@@ -436,7 +436,7 @@ def show_satisfaction():
                     # ボタンをクリックしたときの処理
                     if st.button(button_label, key=f"btn_sat_{q_key}_{i}", type=button_type):
                         st.session_state.responses[f"satisfaction_{q_key}"] = i
-                        st.experimental_rerun()
+                        st.rerun()
             
             # 各ボタンの下に説明を表示
             cols = st.columns(5)
@@ -456,7 +456,7 @@ def show_satisfaction():
         
         # サンキューページへ
         st.session_state.current_page = 6
-        st.experimental_rerun()
+        st.rerun()
 
 # サンキューページ
 def show_thank_you():
@@ -471,7 +471,7 @@ def show_thank_you():
         # セッション状態をリセット
         st.session_state.responses = {}
         st.session_state.current_page = 1
-        st.experimental_rerun()
+        st.rerun()
 
 # メインアプリケーション
 def main():
