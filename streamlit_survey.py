@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import os
-import time
+import base64
 
 # ページ設定
 st.set_page_config(
@@ -18,8 +18,7 @@ def initialize_session():
         'page': 'intro',
         'responses': {},
         'current_page': 1,
-        'error_message': None,
-        'should_scroll': False  # スクロールフラグを追加
+        'error_message': None
     }
     for key, val in defaults.items():
         if key not in st.session_state:
@@ -164,432 +163,424 @@ EXPECTATION_SATISFACTION_CATEGORIES = {
     }
 }
 
-# ページ遷移関数 - ページを変更し、スクロールフラグを設定
-def change_page(new_page):
-    st.session_state.current_page = new_page
-    st.session_state.should_scroll = True
-    st.rerun()
-
 # エラーメッセージ表示
 def show_error_message():
     if st.session_state.error_message:
         st.error(st.session_state.error_message)
         st.session_state.error_message = None
 
+# ページ遷移関数 - Streamlitの状態を完全にリセットして新しいページを表示
+def change_page(new_page):
+    # 現在のページを更新
+    st.session_state.current_page = new_page
+    # 強制的にページをリロード
+    st.experimental_singleton.clear()
+    st.experimental_memo.clear()
+    st.rerun()
+
 # イントロページ
 def show_intro():
-    # スクロールスクリプトを挿入
-    if st.session_state.should_scroll:
+    # 最初に空のコンテナを表示（これにより画面の一番上に表示される）
+    top_container = st.empty()
+    
+    with top_container.container():
+        st.title("従業員満足度・期待度調査")
         st.markdown("""
-        <script>
-            window.scrollTo(0, 0);
-        </script>
-        """, unsafe_allow_html=True)
-        st.session_state.should_scroll = False
-    
-    st.title("従業員満足度・期待度調査")
-    st.markdown("""
-    このアンケートは、従業員の皆様の満足度と期待度を調査し、より良い職場環境づくりに役立てることを目的としています。
-    
-    各質問について、**現在の満足度**と**今後の期待度**の両方をお答えいただきます。
-    回答は匿名で処理され、個人が特定されることはありません。
-    
-    アンケートの所要時間は約15分です。ご協力をお願いいたします。
-    """)
-    
-    if st.button("アンケートを開始する", type="primary"):
-        change_page(2)
+        このアンケートは、従業員の皆様の満足度と期待度を調査し、より良い職場環境づくりに役立てることを目的としています。
+        
+        各質問について、**現在の満足度**と**今後の期待度**の両方をお答えいただきます。
+        回答は匿名で処理され、個人が特定されることはありません。
+        
+        アンケートの所要時間は約15分です。ご協力をお願いいたします。
+        """)
+        
+        if st.button("アンケートを開始する", type="primary"):
+            st.session_state.current_page = 2
+            st.rerun()
 
 # デモグラフィックページ
 def show_demographics():
-    # スクロールスクリプトを挿入
-    if st.session_state.should_scroll:
-        st.markdown("""
-        <script>
-            window.scrollTo(0, 0);
-        </script>
-        """, unsafe_allow_html=True)
-        st.session_state.should_scroll = False
+    # 最初に空のコンテナを表示（これにより画面の一番上に表示される）
+    top_container = st.empty()
     
-    st.title("基本情報")
-    st.markdown("以下の基本情報をご入力ください。")
-    
-    # エラーメッセージ表示
-    show_error_message()
-    
-    with st.form("demographics_form"):
-        for question, options in DEMOGRAPHIC_QUESTIONS.items():
-            if options is None:
-                if question == "年齢":
-                    st.session_state.responses[question] = st.number_input(
-                        f"{question}",
-                        min_value=18,
-                        max_value=80,
-                        value=30,
-                        step=1
-                    )
-                elif question == "残業時間":
-                    st.session_state.responses[question] = st.number_input(
-                        f"{question}（月平均時間）",
-                        min_value=0,
-                        max_value=100,
-                        value=20,
-                        step=1
-                    )
-                elif question == "有給休暇消化率":
-                    st.session_state.responses[question] = st.slider(
-                        f"{question}（%）",
-                        min_value=0,
-                        max_value=100,
-                        value=50,
-                        step=5
-                    )
-                elif question == "入社年":
-                    current_year = datetime.now().year
+    with top_container.container():
+        st.title("基本情報")
+        st.markdown("以下の基本情報をご入力ください。")
+        
+        # エラーメッセージ表示
+        show_error_message()
+        
+        with st.form("demographics_form"):
+            for question, options in DEMOGRAPHIC_QUESTIONS.items():
+                if options is None:
+                    if question == "年齢":
+                        st.session_state.responses[question] = st.number_input(
+                            f"{question}",
+                            min_value=18,
+                            max_value=80,
+                            value=30,
+                            step=1
+                        )
+                    elif question == "残業時間":
+                        st.session_state.responses[question] = st.number_input(
+                            f"{question}（月平均時間）",
+                            min_value=0,
+                            max_value=100,
+                            value=20,
+                            step=1
+                        )
+                    elif question == "有給休暇消化率":
+                        st.session_state.responses[question] = st.slider(
+                            f"{question}（%）",
+                            min_value=0,
+                            max_value=100,
+                            value=50,
+                            step=5
+                        )
+                    elif question == "入社年":
+                        current_year = datetime.now().year
+                        st.session_state.responses[question] = st.selectbox(
+                            f"{question}",
+                            options=list(range(current_year, current_year - 50, -1))
+                        )
+                    elif question == "年収":
+                        st.session_state.responses[question] = st.text_input(
+                            f"{question}（万円）",
+                            value="500",
+                            help="半角数字で入力してください"
+                        )
+                else:
                     st.session_state.responses[question] = st.selectbox(
                         f"{question}",
-                        options=list(range(current_year, current_year - 50, -1))
+                        options=options
                     )
-                elif question == "年収":
-                    st.session_state.responses[question] = st.text_input(
-                        f"{question}（万円）",
-                        value="500",
-                        help="半角数字で入力してください"
-                    )
-            else:
-                st.session_state.responses[question] = st.selectbox(
-                    f"{question}",
-                    options=options
-                )
+            
+            submit_button = st.form_submit_button("次へ進む", type="primary")
+            
+            if submit_button:
+                # 全ての質問に回答されているか確認
+                all_answered = True
+                for question in DEMOGRAPHIC_QUESTIONS.keys():
+                    if question not in st.session_state.responses or not st.session_state.responses[question]:
+                        all_answered = False
+                        break
+                
+                if all_answered:
+                    st.session_state.current_page = 3
+                    # 強制的にページをリロード
+                    st.experimental_singleton.clear()
+                    st.experimental_memo.clear()
+                    st.rerun()
+                else:
+                    st.session_state.error_message = "すべての質問に回答してください。"
+                    st.rerun()
+
+# 評価項目ページ
+def show_evaluation():
+    # 最初に空のコンテナを表示（これにより画面の一番上に表示される）
+    top_container = st.empty()
+    
+    with top_container.container():
+        st.title("総合評価")
+        st.markdown("以下の質問について、あなたの評価をお聞かせください。")
         
-        submit_button = st.form_submit_button("次へ進む", type="primary")
+        # エラーメッセージ表示
+        show_error_message()
         
-        if submit_button:
+        # 11段階評価の説明をカード形式で表示
+        with st.container():
+            st.markdown("""
+            <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
+                <h3 style="margin-top: 0;">選択肢の説明</h3>
+                <div style="display: flex; justify-content: space-between;">
+                    <div>0: 全く当てはまらない</div>
+                    <div>5: どちらとも言えない</div>
+                    <div>10: 非常に当てはまる</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # 11段階評価の質問（フォームの外で処理）
+        st.markdown("## 総合評価項目")
+        
+        for item in EVALUATION_QUESTIONS:
+            if item['type'] == 'rating_11':
+                st.markdown(f"### {item['question']}")
+                
+                # 選択肢を水平に配置
+                cols = st.columns(11)
+                for i in range(11):
+                    with cols[i]:
+                        # セッション状態から現在の選択を取得
+                        is_selected = st.session_state.responses.get(item['key']) == i
+                        
+                        # ボタンのスタイルを選択状態に応じて変更
+                        button_label = f"{i}"
+                        button_type = "primary" if is_selected else "secondary"
+                        
+                        # ボタンをクリックしたときの処理
+                        if st.button(button_label, key=f"btn_{item['key']}_{i}", type=button_type):
+                            st.session_state.responses[item['key']] = i
+                            st.rerun()
+                
+                # 特定の値の下に説明を表示
+                cols = st.columns(11)
+                with cols[0]:
+                    st.markdown("<div style='text-align: center; font-size: 0.8em;'>全く当てはまらない</div>", unsafe_allow_html=True)
+                with cols[5]:
+                    st.markdown("<div style='text-align: center; font-size: 0.8em;'>どちらとも言えない</div>", unsafe_allow_html=True)
+                with cols[10]:
+                    st.markdown("<div style='text-align: center; font-size: 0.8em;'>非常に当てはまる</div>", unsafe_allow_html=True)
+                
+                st.markdown("<hr>", unsafe_allow_html=True)
+        
+        # 活躍貢献度の説明
+        st.markdown("## 活躍貢献度")
+        
+        # 選択肢の説明をカード形式で表示
+        with st.container():
+            st.markdown("""
+            <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
+                <h3 style="margin-top: 0;">選択肢の説明</h3>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+            """, unsafe_allow_html=True)
+            
+            for i, option in enumerate(contribution_options_5):
+                st.markdown(f"<div>{i+1}: {option}</div>", unsafe_allow_html=True)
+            
+            st.markdown("</div></div>", unsafe_allow_html=True)
+        
+        # 活躍貢献度の質問（フォームの外で処理）
+        for item in EVALUATION_QUESTIONS:
+            if item['type'] == 'contribution_5':
+                st.markdown(f"### {item['question']}")
+                
+                # 選択肢を水平に配置
+                cols = st.columns(5)
+                for i in range(1, 6):
+                    with cols[i-1]:
+                        # セッション状態から現在の選択を取得
+                        is_selected = st.session_state.responses.get(item['key']) == i
+                        
+                        # ボタンのスタイルを選択状態に応じて変更
+                        button_label = f"{i}"
+                        button_type = "primary" if is_selected else "secondary"
+                        
+                        # ボタンをクリックしたときの処理
+                        if st.button(button_label, key=f"btn_{item['key']}_{i}", type=button_type):
+                            st.session_state.responses[item['key']] = i
+                            st.rerun()
+                
+                # 各ボタンの下に説明を表示
+                cols = st.columns(5)
+                for i, option in enumerate(contribution_options_5):
+                    with cols[i]:
+                        st.markdown(f"<div style='text-align: center; font-size: 0.8em;'>{option}</div>", unsafe_allow_html=True)
+        
+        # 次へ進むボタン（フォームの外）
+        if st.button("次へ進む", type="primary", key="next_button_eval"):
             # 全ての質問に回答されているか確認
             all_answered = True
-            for question in DEMOGRAPHIC_QUESTIONS.keys():
-                if question not in st.session_state.responses or not st.session_state.responses[question]:
+            for item in EVALUATION_QUESTIONS:
+                if item['key'] not in st.session_state.responses:
                     all_answered = False
                     break
             
             if all_answered:
-                change_page(3)
+                st.session_state.current_page = 4
+                # 強制的にページをリロード
+                st.experimental_singleton.clear()
+                st.experimental_memo.clear()
+                st.rerun()
             else:
                 st.session_state.error_message = "すべての質問に回答してください。"
                 st.rerun()
 
-# 評価項目ページ
-def show_evaluation():
-    # スクロールスクリプトを挿入
-    if st.session_state.should_scroll:
-        st.markdown("""
-        <script>
-            window.scrollTo(0, 0);
-        </script>
-        """, unsafe_allow_html=True)
-        st.session_state.should_scroll = False
-    
-    st.title("総合評価")
-    st.markdown("以下の質問について、あなたの評価をお聞かせください。")
-    
-    # エラーメッセージ表示
-    show_error_message()
-    
-    # 11段階評価の説明をカード形式で表示
-    with st.container():
-        st.markdown("""
-        <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
-            <h3 style="margin-top: 0;">選択肢の説明</h3>
-            <div style="display: flex; justify-content: space-between;">
-                <div>0: 全く当てはまらない</div>
-                <div>5: どちらとも言えない</div>
-                <div>10: 非常に当てはまる</div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # 11段階評価の質問（フォームの外で処理）
-    st.markdown("## 総合評価項目")
-    
-    for item in EVALUATION_QUESTIONS:
-        if item['type'] == 'rating_11':
-            st.markdown(f"### {item['question']}")
-            
-            # 選択肢を水平に配置
-            cols = st.columns(11)
-            for i in range(11):
-                with cols[i]:
-                    # セッション状態から現在の選択を取得
-                    is_selected = st.session_state.responses.get(item['key']) == i
-                    
-                    # ボタンのスタイルを選択状態に応じて変更
-                    button_label = f"{i}"
-                    button_type = "primary" if is_selected else "secondary"
-                    
-                    # ボタンをクリックしたときの処理
-                    if st.button(button_label, key=f"btn_{item['key']}_{i}", type=button_type):
-                        st.session_state.responses[item['key']] = i
-                        st.rerun()
-            
-            # 特定の値の下に説明を表示
-            cols = st.columns(11)
-            with cols[0]:
-                st.markdown("<div style='text-align: center; font-size: 0.8em;'>全く当てはまらない</div>", unsafe_allow_html=True)
-            with cols[5]:
-                st.markdown("<div style='text-align: center; font-size: 0.8em;'>どちらとも言えない</div>", unsafe_allow_html=True)
-            with cols[10]:
-                st.markdown("<div style='text-align: center; font-size: 0.8em;'>非常に当てはまる</div>", unsafe_allow_html=True)
-            
-            st.markdown("<hr>", unsafe_allow_html=True)
-    
-    # 活躍貢献度の説明
-    st.markdown("## 活躍貢献度")
-    
-    # 選択肢の説明をカード形式で表示
-    with st.container():
-        st.markdown("""
-        <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
-            <h3 style="margin-top: 0;">選択肢の説明</h3>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
-        """, unsafe_allow_html=True)
-        
-        for i, option in enumerate(contribution_options_5):
-            st.markdown(f"<div>{i+1}: {option}</div>", unsafe_allow_html=True)
-        
-        st.markdown("</div></div>", unsafe_allow_html=True)
-    
-    # 活躍貢献度の質問（フォームの外で処理）
-    for item in EVALUATION_QUESTIONS:
-        if item['type'] == 'contribution_5':
-            st.markdown(f"### {item['question']}")
-            
-            # 選択肢を水平に配置
-            cols = st.columns(5)
-            for i in range(1, 6):
-                with cols[i-1]:
-                    # セッション状態から現在の選択を取得
-                    is_selected = st.session_state.responses.get(item['key']) == i
-                    
-                    # ボタンのスタイルを選択状態に応じて変更
-                    button_label = f"{i}"
-                    button_type = "primary" if is_selected else "secondary"
-                    
-                    # ボタンをクリックしたときの処理
-                    if st.button(button_label, key=f"btn_{item['key']}_{i}", type=button_type):
-                        st.session_state.responses[item['key']] = i
-                        st.rerun()
-            
-            # 各ボタンの下に説明を表示
-            cols = st.columns(5)
-            for i, option in enumerate(contribution_options_5):
-                with cols[i]:
-                    st.markdown(f"<div style='text-align: center; font-size: 0.8em;'>{option}</div>", unsafe_allow_html=True)
-    
-    # 次へ進むボタン（フォームの外）
-    if st.button("次へ進む", type="primary", key="next_button_eval"):
-        # 全ての質問に回答されているか確認
-        all_answered = True
-        for item in EVALUATION_QUESTIONS:
-            if item['key'] not in st.session_state.responses:
-                all_answered = False
-                break
-        
-        if all_answered:
-            change_page(4)
-        else:
-            st.session_state.error_message = "すべての質問に回答してください。"
-            st.rerun()
-
 # 期待項目ページ
 def show_expectation():
-    # スクロールスクリプトを挿入
-    if st.session_state.should_scroll:
-        st.markdown("""
-        <script>
-            window.scrollTo(0, 0);
-        </script>
-        """, unsafe_allow_html=True)
-        st.session_state.should_scroll = False
+    # 最初に空のコンテナを表示（これにより画面の一番上に表示される）
+    top_container = st.empty()
     
-    st.title("期待項目の確認")
-    st.markdown("以下の項目について、今の会社にどの程度**期待**しているかを率直にお答えください。")
-    
-    # エラーメッセージ表示
-    show_error_message()
-    
-    # 選択肢の説明をカード形式で表示
-    with st.container():
-        st.markdown("""
-        <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
-            <h3 style="margin-top: 0;">選択肢の説明</h3>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
-        """, unsafe_allow_html=True)
+    with top_container.container():
+        st.title("期待項目の確認")
+        st.markdown("以下の項目について、今の会社にどの程度**期待**しているかを率直にお答えください。")
         
-        for i, option in enumerate(expectation_options_5):
-            st.markdown(f"<div>{i+1}: {option}</div>", unsafe_allow_html=True)
+        # エラーメッセージ表示
+        show_error_message()
         
-        st.markdown("</div></div>", unsafe_allow_html=True)
-    
-    # カテゴリごとに質問を表示
-    for category, questions in EXPECTATION_SATISFACTION_CATEGORIES.items():
-        st.markdown(f"## {category}")
-        
-        # 各質問項目
-        for q_key, question in questions.items():
-            st.markdown(f"### {question}")
+        # 選択肢の説明をカード形式で表示
+        with st.container():
+            st.markdown("""
+            <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
+                <h3 style="margin-top: 0;">選択肢の説明</h3>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+            """, unsafe_allow_html=True)
             
-            # 選択肢を水平に配置
-            cols = st.columns(5)
-            for i in range(1, 6):
-                with cols[i-1]:
-                    # セッション状態から現在の選択を取得
-                    is_selected = st.session_state.responses.get(f"expectation_{q_key}") == i
-                    
-                    # ボタンのスタイルを選択状態に応じて変更
-                    button_label = f"{i}"
-                    button_type = "primary" if is_selected else "secondary"
-                    
-                    # ボタンをクリックしたときの処理
-                    if st.button(button_label, key=f"btn_exp_{q_key}_{i}", type=button_type):
-                        st.session_state.responses[f"expectation_{q_key}"] = i
-                        st.rerun()
-            
-            # 各ボタンの下に説明を表示
-            cols = st.columns(5)
             for i, option in enumerate(expectation_options_5):
-                with cols[i]:
-                    st.markdown(f"<div style='text-align: center; font-size: 0.8em;'>{option}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div>{i+1}: {option}</div>", unsafe_allow_html=True)
             
-            st.markdown("<hr>", unsafe_allow_html=True)
-    
-    # 次へ進むボタン
-    if st.button("次へ進む", type="primary", key="next_button_exp"):
-        # 全ての質問に回答されているか確認
-        all_answered = True
-        for category, questions in EXPECTATION_SATISFACTION_CATEGORIES.items():
-            for q_key in questions.keys():
-                if f"expectation_{q_key}" not in st.session_state.responses:
-                    all_answered = False
-                    break
-            if not all_answered:
-                break
+            st.markdown("</div></div>", unsafe_allow_html=True)
         
-        if all_answered:
-            change_page(5)
-        else:
-            st.session_state.error_message = "すべての質問に回答してください。"
-            st.rerun()
+        # カテゴリごとに質問を表示
+        for category, questions in EXPECTATION_SATISFACTION_CATEGORIES.items():
+            st.markdown(f"## {category}")
+            
+            # 各質問項目
+            for q_key, question in questions.items():
+                st.markdown(f"### {question}")
+                
+                # 選択肢を水平に配置
+                cols = st.columns(5)
+                for i in range(1, 6):
+                    with cols[i-1]:
+                        # セッション状態から現在の選択を取得
+                        is_selected = st.session_state.responses.get(f"expectation_{q_key}") == i
+                        
+                        # ボタンのスタイルを選択状態に応じて変更
+                        button_label = f"{i}"
+                        button_type = "primary" if is_selected else "secondary"
+                        
+                        # ボタンをクリックしたときの処理
+                        if st.button(button_label, key=f"btn_exp_{q_key}_{i}", type=button_type):
+                            st.session_state.responses[f"expectation_{q_key}"] = i
+                            st.rerun()
+                
+                # 各ボタンの下に説明を表示
+                cols = st.columns(5)
+                for i, option in enumerate(expectation_options_5):
+                    with cols[i]:
+                        st.markdown(f"<div style='text-align: center; font-size: 0.8em;'>{option}</div>", unsafe_allow_html=True)
+                
+                st.markdown("<hr>", unsafe_allow_html=True)
+        
+        # 次へ進むボタン
+        if st.button("次へ進む", type="primary", key="next_button_exp"):
+            # 全ての質問に回答されているか確認
+            all_answered = True
+            for category, questions in EXPECTATION_SATISFACTION_CATEGORIES.items():
+                for q_key in questions.keys():
+                    if f"expectation_{q_key}" not in st.session_state.responses:
+                        all_answered = False
+                        break
+                if not all_answered:
+                    break
+            
+            if all_answered:
+                st.session_state.current_page = 5
+                # 強制的にページをリロード
+                st.experimental_singleton.clear()
+                st.experimental_memo.clear()
+                st.rerun()
+            else:
+                st.session_state.error_message = "すべての質問に回答してください。"
+                st.rerun()
 
 # 満足項目ページ
 def show_satisfaction():
-    # スクロールスクリプトを挿入
-    if st.session_state.should_scroll:
-        st.markdown("""
-        <script>
-            window.scrollTo(0, 0);
-        </script>
-        """, unsafe_allow_html=True)
-        st.session_state.should_scroll = False
+    # 最初に空のコンテナを表示（これにより画面の一番上に表示される）
+    top_container = st.empty()
     
-    st.title("満足項目の確認")
-    st.markdown("以下の項目について、今の会社にどの程度**満足**しているかを率直にお答えください。")
-    
-    # エラーメッセージ表示
-    show_error_message()
-    
-    # 選択肢の説明をカード形式で表示
-    with st.container():
-        st.markdown("""
-        <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
-            <h3 style="margin-top: 0;">選択肢の説明</h3>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
-        """, unsafe_allow_html=True)
+    with top_container.container():
+        st.title("満足項目の確認")
+        st.markdown("以下の項目について、今の会社にどの程度**満足**しているかを率直にお答えください。")
         
-        for i, option in enumerate(rating_options_5):
-            st.markdown(f"<div>{i+1}: {option}</div>", unsafe_allow_html=True)
+        # エラーメッセージ表示
+        show_error_message()
         
-        st.markdown("</div></div>", unsafe_allow_html=True)
-    
-    # カテゴリごとに質問を表示
-    for category, questions in EXPECTATION_SATISFACTION_CATEGORIES.items():
-        st.markdown(f"## {category}")
-        
-        # 各質問項目
-        for q_key, question in questions.items():
-            st.markdown(f"### {question}")
+        # 選択肢の説明をカード形式で表示
+        with st.container():
+            st.markdown("""
+            <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
+                <h3 style="margin-top: 0;">選択肢の説明</h3>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+            """, unsafe_allow_html=True)
             
-            # 選択肢を水平に配置
-            cols = st.columns(5)
-            for i in range(1, 6):
-                with cols[i-1]:
-                    # セッション状態から現在の選択を取得
-                    is_selected = st.session_state.responses.get(f"satisfaction_{q_key}") == i
-                    
-                    # ボタンのスタイルを選択状態に応じて変更
-                    button_label = f"{i}"
-                    button_type = "primary" if is_selected else "secondary"
-                    
-                    # ボタンをクリックしたときの処理
-                    if st.button(button_label, key=f"btn_sat_{q_key}_{i}", type=button_type):
-                        st.session_state.responses[f"satisfaction_{q_key}"] = i
-                        st.rerun()
-            
-            # 各ボタンの下に説明を表示
-            cols = st.columns(5)
             for i, option in enumerate(rating_options_5):
-                with cols[i]:
-                    st.markdown(f"<div style='text-align: center; font-size: 0.8em;'>{option}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div>{i+1}: {option}</div>", unsafe_allow_html=True)
             
-            st.markdown("<hr>", unsafe_allow_html=True)
-    
-    # 送信ボタン
-    if st.button("回答を送信する", type="primary", key="submit_button_sat"):
-        # 全ての質問に回答されているか確認
-        all_answered = True
-        for category, questions in EXPECTATION_SATISFACTION_CATEGORIES.items():
-            for q_key in questions.keys():
-                if f"satisfaction_{q_key}" not in st.session_state.responses:
-                    all_answered = False
-                    break
-            if not all_answered:
-                break
+            st.markdown("</div></div>", unsafe_allow_html=True)
         
-        if all_answered:
-            # タイムスタンプを追加
-            st.session_state.responses['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # カテゴリごとに質問を表示
+        for category, questions in EXPECTATION_SATISFACTION_CATEGORIES.items():
+            st.markdown(f"## {category}")
             
-            # データを保存
-            save_data(st.session_state.responses)
+            # 各質問項目
+            for q_key, question in questions.items():
+                st.markdown(f"### {question}")
+                
+                # 選択肢を水平に配置
+                cols = st.columns(5)
+                for i in range(1, 6):
+                    with cols[i-1]:
+                        # セッション状態から現在の選択を取得
+                        is_selected = st.session_state.responses.get(f"satisfaction_{q_key}") == i
+                        
+                        # ボタンのスタイルを選択状態に応じて変更
+                        button_label = f"{i}"
+                        button_type = "primary" if is_selected else "secondary"
+                        
+                        # ボタンをクリックしたときの処理
+                        if st.button(button_label, key=f"btn_sat_{q_key}_{i}", type=button_type):
+                            st.session_state.responses[f"satisfaction_{q_key}"] = i
+                            st.rerun()
+                
+                # 各ボタンの下に説明を表示
+                cols = st.columns(5)
+                for i, option in enumerate(rating_options_5):
+                    with cols[i]:
+                        st.markdown(f"<div style='text-align: center; font-size: 0.8em;'>{option}</div>", unsafe_allow_html=True)
+                
+                st.markdown("<hr>", unsafe_allow_html=True)
+        
+        # 送信ボタン
+        if st.button("回答を送信する", type="primary", key="submit_button_sat"):
+            # 全ての質問に回答されているか確認
+            all_answered = True
+            for category, questions in EXPECTATION_SATISFACTION_CATEGORIES.items():
+                for q_key in questions.keys():
+                    if f"satisfaction_{q_key}" not in st.session_state.responses:
+                        all_answered = False
+                        break
+                if not all_answered:
+                    break
             
-            # サンキューページへ
-            change_page(6)
-        else:
-            st.session_state.error_message = "すべての質問に回答してください。"
-            st.rerun()
+            if all_answered:
+                # タイムスタンプを追加
+                st.session_state.responses['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                
+                # データを保存
+                save_data(st.session_state.responses)
+                
+                # サンキューページへ
+                st.session_state.current_page = 6
+                # 強制的にページをリロード
+                st.experimental_singleton.clear()
+                st.experimental_memo.clear()
+                st.rerun()
+            else:
+                st.session_state.error_message = "すべての質問に回答してください。"
+                st.rerun()
 
 # サンキューページ
 def show_thank_you():
-    # スクロールスクリプトを挿入
-    if st.session_state.should_scroll:
+    # 最初に空のコンテナを表示（これにより画面の一番上に表示される）
+    top_container = st.empty()
+    
+    with top_container.container():
+        st.title("ご回答ありがとうございました")
         st.markdown("""
-        <script>
-            window.scrollTo(0, 0);
-        </script>
-        """, unsafe_allow_html=True)
-        st.session_state.should_scroll = False
-    
-    st.title("ご回答ありがとうございました")
-    st.markdown("""
-    アンケートへのご協力ありがとうございました。
-    いただいた回答は、より良い職場環境づくりのために活用させていただきます。
-    """)
-    
-    if st.button("新しいアンケートを開始", type="primary"):
-        # セッション状態をリセット
-        st.session_state.responses = {}
-        st.session_state.current_page = 1
-        st.session_state.should_scroll = True
-        st.rerun()
+        アンケートへのご協力ありがとうございました。
+        いただいた回答は、より良い職場環境づくりのために活用させていただきます。
+        """)
+        
+        if st.button("新しいアンケートを開始", type="primary"):
+            # セッション状態をリセット
+            st.session_state.responses = {}
+            st.session_state.current_page = 1
+            # 強制的にページをリロード
+            st.experimental_singleton.clear()
+            st.experimental_memo.clear()
+            st.rerun()
 
 # メインアプリケーション
 def main():
