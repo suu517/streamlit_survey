@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import os
+import time
 
 # ページ設定
 st.set_page_config(
@@ -17,7 +18,8 @@ def initialize_session():
         'page': 'intro',
         'responses': {},
         'current_page': 1,
-        'error_message': None
+        'error_message': None,
+        'should_scroll': False  # スクロールフラグを追加
     }
     for key, val in defaults.items():
         if key not in st.session_state:
@@ -162,14 +164,11 @@ EXPECTATION_SATISFACTION_CATEGORIES = {
     }
 }
 
-# スクロール処理 - JavaScriptを使用して確実に一番上にスクロール
-def scroll_to_top():
-    js = '''
-    <script>
-        window.scrollTo(0, 0);
-    </script>
-    '''
-    st.markdown(js, unsafe_allow_html=True)
+# ページ遷移関数 - ページを変更し、スクロールフラグを設定
+def change_page(new_page):
+    st.session_state.current_page = new_page
+    st.session_state.should_scroll = True
+    st.rerun()
 
 # エラーメッセージ表示
 def show_error_message():
@@ -179,7 +178,15 @@ def show_error_message():
 
 # イントロページ
 def show_intro():
-    scroll_to_top()
+    # スクロールスクリプトを挿入
+    if st.session_state.should_scroll:
+        st.markdown("""
+        <script>
+            window.scrollTo(0, 0);
+        </script>
+        """, unsafe_allow_html=True)
+        st.session_state.should_scroll = False
+    
     st.title("従業員満足度・期待度調査")
     st.markdown("""
     このアンケートは、従業員の皆様の満足度と期待度を調査し、より良い職場環境づくりに役立てることを目的としています。
@@ -191,12 +198,19 @@ def show_intro():
     """)
     
     if st.button("アンケートを開始する", type="primary"):
-        st.session_state.current_page = 2
-        st.rerun()
+        change_page(2)
 
 # デモグラフィックページ
 def show_demographics():
-    scroll_to_top()
+    # スクロールスクリプトを挿入
+    if st.session_state.should_scroll:
+        st.markdown("""
+        <script>
+            window.scrollTo(0, 0);
+        </script>
+        """, unsafe_allow_html=True)
+        st.session_state.should_scroll = False
+    
     st.title("基本情報")
     st.markdown("以下の基本情報をご入力ください。")
     
@@ -259,15 +273,22 @@ def show_demographics():
                     break
             
             if all_answered:
-                st.session_state.current_page = 3
-                st.rerun()
+                change_page(3)
             else:
                 st.session_state.error_message = "すべての質問に回答してください。"
                 st.rerun()
 
 # 評価項目ページ
 def show_evaluation():
-    scroll_to_top()
+    # スクロールスクリプトを挿入
+    if st.session_state.should_scroll:
+        st.markdown("""
+        <script>
+            window.scrollTo(0, 0);
+        </script>
+        """, unsafe_allow_html=True)
+        st.session_state.should_scroll = False
+    
     st.title("総合評価")
     st.markdown("以下の質問について、あなたの評価をお聞かせください。")
     
@@ -374,15 +395,22 @@ def show_evaluation():
                 break
         
         if all_answered:
-            st.session_state.current_page = 4
-            st.rerun()
+            change_page(4)
         else:
             st.session_state.error_message = "すべての質問に回答してください。"
             st.rerun()
 
 # 期待項目ページ
 def show_expectation():
-    scroll_to_top()
+    # スクロールスクリプトを挿入
+    if st.session_state.should_scroll:
+        st.markdown("""
+        <script>
+            window.scrollTo(0, 0);
+        </script>
+        """, unsafe_allow_html=True)
+        st.session_state.should_scroll = False
+    
     st.title("期待項目の確認")
     st.markdown("以下の項目について、今の会社にどの程度**期待**しているかを率直にお答えください。")
     
@@ -447,15 +475,22 @@ def show_expectation():
                 break
         
         if all_answered:
-            st.session_state.current_page = 5
-            st.rerun()
+            change_page(5)
         else:
             st.session_state.error_message = "すべての質問に回答してください。"
             st.rerun()
 
 # 満足項目ページ
 def show_satisfaction():
-    scroll_to_top()
+    # スクロールスクリプトを挿入
+    if st.session_state.should_scroll:
+        st.markdown("""
+        <script>
+            window.scrollTo(0, 0);
+        </script>
+        """, unsafe_allow_html=True)
+        st.session_state.should_scroll = False
+    
     st.title("満足項目の確認")
     st.markdown("以下の項目について、今の会社にどの程度**満足**しているかを率直にお答えください。")
     
@@ -527,15 +562,22 @@ def show_satisfaction():
             save_data(st.session_state.responses)
             
             # サンキューページへ
-            st.session_state.current_page = 6
-            st.rerun()
+            change_page(6)
         else:
             st.session_state.error_message = "すべての質問に回答してください。"
             st.rerun()
 
 # サンキューページ
 def show_thank_you():
-    scroll_to_top()
+    # スクロールスクリプトを挿入
+    if st.session_state.should_scroll:
+        st.markdown("""
+        <script>
+            window.scrollTo(0, 0);
+        </script>
+        """, unsafe_allow_html=True)
+        st.session_state.should_scroll = False
+    
     st.title("ご回答ありがとうございました")
     st.markdown("""
     アンケートへのご協力ありがとうございました。
@@ -546,6 +588,7 @@ def show_thank_you():
         # セッション状態をリセット
         st.session_state.responses = {}
         st.session_state.current_page = 1
+        st.session_state.should_scroll = True
         st.rerun()
 
 # メインアプリケーション
