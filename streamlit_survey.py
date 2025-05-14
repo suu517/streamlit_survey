@@ -16,7 +16,8 @@ def initialize_session():
     defaults = {
         'page': 'intro',
         'responses': {},
-        'current_page': 1
+        'current_page': 1,
+        'error_message': None
     }
     for key, val in defaults.items():
         if key not in st.session_state:
@@ -161,8 +162,20 @@ EXPECTATION_SATISFACTION_CATEGORIES = {
     }
 }
 
-# スクロール処理
-scroll_to_top = lambda: st.markdown('<script>window.scrollTo(0, 0);</script>', unsafe_allow_html=True)
+# スクロール処理 - JavaScriptを使用して確実に一番上にスクロール
+def scroll_to_top():
+    js = '''
+    <script>
+        window.scrollTo(0, 0);
+    </script>
+    '''
+    st.markdown(js, unsafe_allow_html=True)
+
+# エラーメッセージ表示
+def show_error_message():
+    if st.session_state.error_message:
+        st.error(st.session_state.error_message)
+        st.session_state.error_message = None
 
 # イントロページ
 def show_intro():
@@ -186,6 +199,9 @@ def show_demographics():
     scroll_to_top()
     st.title("基本情報")
     st.markdown("以下の基本情報をご入力ください。")
+    
+    # エラーメッセージ表示
+    show_error_message()
     
     with st.form("demographics_form"):
         for question, options in DEMOGRAPHIC_QUESTIONS.items():
@@ -235,14 +251,28 @@ def show_demographics():
         submit_button = st.form_submit_button("次へ進む", type="primary")
         
         if submit_button:
-            st.session_state.current_page = 3
-            st.rerun()
+            # 全ての質問に回答されているか確認
+            all_answered = True
+            for question in DEMOGRAPHIC_QUESTIONS.keys():
+                if question not in st.session_state.responses or not st.session_state.responses[question]:
+                    all_answered = False
+                    break
+            
+            if all_answered:
+                st.session_state.current_page = 3
+                st.rerun()
+            else:
+                st.session_state.error_message = "すべての質問に回答してください。"
+                st.rerun()
 
 # 評価項目ページ
 def show_evaluation():
     scroll_to_top()
     st.title("総合評価")
     st.markdown("以下の質問について、あなたの評価をお聞かせください。")
+    
+    # エラーメッセージ表示
+    show_error_message()
     
     # 11段階評価の説明をカード形式で表示
     with st.container():
@@ -336,14 +366,28 @@ def show_evaluation():
     
     # 次へ進むボタン（フォームの外）
     if st.button("次へ進む", type="primary", key="next_button_eval"):
-        st.session_state.current_page = 4
-        st.rerun()
+        # 全ての質問に回答されているか確認
+        all_answered = True
+        for item in EVALUATION_QUESTIONS:
+            if item['key'] not in st.session_state.responses:
+                all_answered = False
+                break
+        
+        if all_answered:
+            st.session_state.current_page = 4
+            st.rerun()
+        else:
+            st.session_state.error_message = "すべての質問に回答してください。"
+            st.rerun()
 
 # 期待項目ページ
 def show_expectation():
     scroll_to_top()
     st.title("期待項目の確認")
     st.markdown("以下の項目について、今の会社にどの程度**期待**しているかを率直にお答えください。")
+    
+    # エラーメッセージ表示
+    show_error_message()
     
     # 選択肢の説明をカード形式で表示
     with st.container():
@@ -392,14 +436,31 @@ def show_expectation():
     
     # 次へ進むボタン
     if st.button("次へ進む", type="primary", key="next_button_exp"):
-        st.session_state.current_page = 5
-        st.rerun()
+        # 全ての質問に回答されているか確認
+        all_answered = True
+        for category, questions in EXPECTATION_SATISFACTION_CATEGORIES.items():
+            for q_key in questions.keys():
+                if f"expectation_{q_key}" not in st.session_state.responses:
+                    all_answered = False
+                    break
+            if not all_answered:
+                break
+        
+        if all_answered:
+            st.session_state.current_page = 5
+            st.rerun()
+        else:
+            st.session_state.error_message = "すべての質問に回答してください。"
+            st.rerun()
 
 # 満足項目ページ
 def show_satisfaction():
     scroll_to_top()
     st.title("満足項目の確認")
     st.markdown("以下の項目について、今の会社にどの程度**満足**しているかを率直にお答えください。")
+    
+    # エラーメッセージ表示
+    show_error_message()
     
     # 選択肢の説明をカード形式で表示
     with st.container():
@@ -448,15 +509,29 @@ def show_satisfaction():
     
     # 送信ボタン
     if st.button("回答を送信する", type="primary", key="submit_button_sat"):
-        # タイムスタンプを追加
-        st.session_state.responses['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # 全ての質問に回答されているか確認
+        all_answered = True
+        for category, questions in EXPECTATION_SATISFACTION_CATEGORIES.items():
+            for q_key in questions.keys():
+                if f"satisfaction_{q_key}" not in st.session_state.responses:
+                    all_answered = False
+                    break
+            if not all_answered:
+                break
         
-        # データを保存
-        save_data(st.session_state.responses)
-        
-        # サンキューページへ
-        st.session_state.current_page = 6
-        st.rerun()
+        if all_answered:
+            # タイムスタンプを追加
+            st.session_state.responses['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            # データを保存
+            save_data(st.session_state.responses)
+            
+            # サンキューページへ
+            st.session_state.current_page = 6
+            st.rerun()
+        else:
+            st.session_state.error_message = "すべての質問に回答してください。"
+            st.rerun()
 
 # サンキューページ
 def show_thank_you():
@@ -522,6 +597,11 @@ def main():
     /* プログレスバーのスタイル */
     .stProgress > div > div {
         background-color: #1E88E5;
+    }
+    
+    /* エラーメッセージのスタイル */
+    .stAlert {
+        margin-bottom: 20px;
     }
     
     /* モバイル対応 */
