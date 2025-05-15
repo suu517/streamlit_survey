@@ -16,9 +16,7 @@ def initialize_session():
     defaults = {
         'page': 'intro',
         'responses': {},
-        'current_page': 1,
-        'error_message': None,
-        'key_prefix': 0  # キー接頭辞を追加（ページ再レンダリング用）
+        'current_page': 1
     }
     for key, val in defaults.items():
         if key not in st.session_state:
@@ -163,24 +161,12 @@ EXPECTATION_SATISFACTION_CATEGORIES = {
     }
 }
 
-# エラーメッセージ表示
-def show_error_message():
-    if st.session_state.error_message:
-        st.error(st.session_state.error_message)
-        st.session_state.error_message = None
-
-# ページ遷移関数 - キー接頭辞を更新してページを再レンダリング
-def change_page(new_page):
-    st.session_state.current_page = new_page
-    # キー接頭辞を更新して強制的に再レンダリング
-    st.session_state.key_prefix += 1
-    st.rerun()
+# スクロール処理
+scroll_to_top = lambda: st.markdown('<script>window.scrollTo(0, 0);</script>', unsafe_allow_html=True)
 
 # イントロページ
 def show_intro():
-    # 最初に空のコンテナを表示（これにより画面の一番上に表示される）
-    st.container()
-    
+    scroll_to_top()
     st.title("従業員満足度・期待度調査")
     st.markdown("""
     このアンケートは、従業員の皆様の満足度と期待度を調査し、より良い職場環境づくりに役立てることを目的としています。
@@ -191,21 +177,17 @@ def show_intro():
     アンケートの所要時間は約15分です。ご協力をお願いいたします。
     """)
     
-    if st.button("アンケートを開始する", type="primary", key=f"start_{st.session_state.key_prefix}"):
-        change_page(2)
+    if st.button("アンケートを開始する", type="primary"):
+        st.session_state.current_page = 2
+        st.rerun()
 
 # デモグラフィックページ
 def show_demographics():
-    # 最初に空のコンテナを表示（これにより画面の一番上に表示される）
-    st.container()
-    
+    scroll_to_top()
     st.title("基本情報")
     st.markdown("以下の基本情報をご入力ください。")
     
-    # エラーメッセージ表示
-    show_error_message()
-    
-    with st.form(f"demographics_form_{st.session_state.key_prefix}"):
+    with st.form("demographics_form"):
         for question, options in DEMOGRAPHIC_QUESTIONS.items():
             if options is None:
                 if question == "年齢":
@@ -214,8 +196,7 @@ def show_demographics():
                         min_value=18,
                         max_value=80,
                         value=30,
-                        step=1,
-                        key=f"{question}_{st.session_state.key_prefix}"
+                        step=1
                     )
                 elif question == "残業時間":
                     st.session_state.responses[question] = st.number_input(
@@ -223,8 +204,7 @@ def show_demographics():
                         min_value=0,
                         max_value=100,
                         value=20,
-                        step=1,
-                        key=f"{question}_{st.session_state.key_prefix}"
+                        step=1
                     )
                 elif question == "有給休暇消化率":
                     st.session_state.responses[question] = st.slider(
@@ -232,56 +212,37 @@ def show_demographics():
                         min_value=0,
                         max_value=100,
                         value=50,
-                        step=5,
-                        key=f"{question}_{st.session_state.key_prefix}"
+                        step=5
                     )
                 elif question == "入社年":
                     current_year = datetime.now().year
                     st.session_state.responses[question] = st.selectbox(
                         f"{question}",
-                        options=list(range(current_year, current_year - 50, -1)),
-                        key=f"{question}_{st.session_state.key_prefix}"
+                        options=list(range(current_year, current_year - 50, -1))
                     )
                 elif question == "年収":
                     st.session_state.responses[question] = st.text_input(
                         f"{question}（万円）",
                         value="500",
-                        help="半角数字で入力してください",
-                        key=f"{question}_{st.session_state.key_prefix}"
+                        help="半角数字で入力してください"
                     )
             else:
                 st.session_state.responses[question] = st.selectbox(
                     f"{question}",
-                    options=options,
-                    key=f"{question}_{st.session_state.key_prefix}"
+                    options=options
                 )
         
         submit_button = st.form_submit_button("次へ進む", type="primary")
         
         if submit_button:
-            # 全ての質問に回答されているか確認
-            all_answered = True
-            for question in DEMOGRAPHIC_QUESTIONS.keys():
-                if question not in st.session_state.responses or not st.session_state.responses[question]:
-                    all_answered = False
-                    break
-            
-            if all_answered:
-                change_page(3)
-            else:
-                st.session_state.error_message = "すべての質問に回答してください。"
-                st.rerun()
+            st.session_state.current_page = 3
+            st.rerun()
 
 # 評価項目ページ
 def show_evaluation():
-    # 最初に空のコンテナを表示（これにより画面の一番上に表示される）
-    st.container()
-    
+    scroll_to_top()
     st.title("総合評価")
     st.markdown("以下の質問について、あなたの評価をお聞かせください。")
-    
-    # エラーメッセージ表示
-    show_error_message()
     
     # 11段階評価の説明をカード形式で表示
     with st.container():
@@ -315,7 +276,7 @@ def show_evaluation():
                     button_type = "primary" if is_selected else "secondary"
                     
                     # ボタンをクリックしたときの処理
-                    if st.button(button_label, key=f"btn_{item['key']}_{i}_{st.session_state.key_prefix}", type=button_type):
+                    if st.button(button_label, key=f"btn_{item['key']}_{i}", type=button_type):
                         st.session_state.responses[item['key']] = i
                         st.rerun()
             
@@ -363,7 +324,7 @@ def show_evaluation():
                     button_type = "primary" if is_selected else "secondary"
                     
                     # ボタンをクリックしたときの処理
-                    if st.button(button_label, key=f"btn_{item['key']}_{i}_{st.session_state.key_prefix}", type=button_type):
+                    if st.button(button_label, key=f"btn_{item['key']}_{i}", type=button_type):
                         st.session_state.responses[item['key']] = i
                         st.rerun()
             
@@ -374,30 +335,15 @@ def show_evaluation():
                     st.markdown(f"<div style='text-align: center; font-size: 0.8em;'>{option}</div>", unsafe_allow_html=True)
     
     # 次へ進むボタン（フォームの外）
-    if st.button("次へ進む", type="primary", key=f"next_button_eval_{st.session_state.key_prefix}"):
-        # 全ての質問に回答されているか確認
-        all_answered = True
-        for item in EVALUATION_QUESTIONS:
-            if item['key'] not in st.session_state.responses:
-                all_answered = False
-                break
-        
-        if all_answered:
-            change_page(4)
-        else:
-            st.session_state.error_message = "すべての質問に回答してください。"
-            st.rerun()
+    if st.button("次へ進む", type="primary", key="next_button_eval"):
+        st.session_state.current_page = 4
+        st.rerun()
 
 # 期待項目ページ
 def show_expectation():
-    # 最初に空のコンテナを表示（これにより画面の一番上に表示される）
-    st.container()
-    
+    scroll_to_top()
     st.title("期待項目の確認")
     st.markdown("以下の項目について、今の会社にどの程度**期待**しているかを率直にお答えください。")
-    
-    # エラーメッセージ表示
-    show_error_message()
     
     # 選択肢の説明をカード形式で表示
     with st.container():
@@ -432,7 +378,7 @@ def show_expectation():
                     button_type = "primary" if is_selected else "secondary"
                     
                     # ボタンをクリックしたときの処理
-                    if st.button(button_label, key=f"btn_exp_{q_key}_{i}_{st.session_state.key_prefix}", type=button_type):
+                    if st.button(button_label, key=f"btn_exp_{q_key}_{i}", type=button_type):
                         st.session_state.responses[f"expectation_{q_key}"] = i
                         st.rerun()
             
@@ -445,33 +391,68 @@ def show_expectation():
             st.markdown("<hr>", unsafe_allow_html=True)
     
     # 次へ進むボタン
-    if st.button("次へ進む", type="primary", key=f"next_button_exp_{st.session_state.key_prefix}"):
-        # 全ての質問に回答されているか確認
-        all_answered = True
-        for category, questions in EXPECTATION_SATISFACTION_CATEGORIES.items():
-            for q_key in questions.keys():
-                if f"expectation_{q_key}" not in st.session_state.responses:
-                    all_answered = False
-                    break
-            if not all_answered:
-                break
+    if st.button("次へ進む", type="primary", key="next_button_exp"):
+        st.session_state.current_page = 5
+        st.rerun()
+
+# 期待していない項目の理由ページ
+def show_low_expectation_reason():
+    scroll_to_top()
+    st.title("期待していない項目について")
+    
+    # 期待していない項目（1または2を選択した項目）を抽出
+    low_expectation_items = []
+    
+    for category, questions in EXPECTATION_SATISFACTION_CATEGORIES.items():
+        for q_key, question in questions.items():
+            response_key = f"expectation_{q_key}"
+            if response_key in st.session_state.responses:
+                if st.session_state.responses[response_key] in [1, 2]:  # 1:期待していない, 2:どちらかと言えば期待していない
+                    low_expectation_items.append({
+                        "category": category,
+                        "key": q_key,
+                        "question": question,
+                        "rating": st.session_state.responses[response_key]
+                    })
+    
+    if not low_expectation_items:
+        st.info("「期待していない」または「どちらかと言えば期待していない」と回答した項目はありませんでした。")
+        if st.button("次へ進む", type="primary"):
+            st.session_state.current_page = 6
+            st.rerun()
+    else:
+        st.markdown("あなたが「期待していない」または「どちらかと言えば期待していない」と回答した項目があります。その中から1つ選び、理由をお聞かせください。")
         
-        if all_answered:
-            change_page(5)
-        else:
-            st.session_state.error_message = "すべての質問に回答してください。"
+        # 項目の選択
+        options = [f"{item['category']} - {item['question']} ({expectation_options_5[item['rating']-1]})" for item in low_expectation_items]
+        selected_option = st.selectbox("項目を選択してください", options)
+        
+        # 選択された項目のインデックスを取得
+        selected_index = options.index(selected_option)
+        selected_item = low_expectation_items[selected_index]
+        
+        # 理由の入力
+        reason = st.text_area(
+            f"「{selected_item['question']}」について、なぜ「{expectation_options_5[selected_item['rating']-1]}」と回答されたのか、理由をお聞かせください。",
+            height=150
+        )
+        
+        # 次へ進むボタン
+        if st.button("次へ進む", type="primary"):
+            # 回答を保存
+            st.session_state.responses[f"low_expectation_item"] = f"{selected_item['category']} - {selected_item['question']}"
+            st.session_state.responses[f"low_expectation_rating"] = expectation_options_5[selected_item['rating']-1]
+            st.session_state.responses[f"low_expectation_reason"] = reason
+            
+            # 次のページへ
+            st.session_state.current_page = 6
             st.rerun()
 
 # 満足項目ページ
 def show_satisfaction():
-    # 最初に空のコンテナを表示（これにより画面の一番上に表示される）
-    st.container()
-    
+    scroll_to_top()
     st.title("満足項目の確認")
     st.markdown("以下の項目について、今の会社にどの程度**満足**しているかを率直にお答えください。")
-    
-    # エラーメッセージ表示
-    show_error_message()
     
     # 選択肢の説明をカード形式で表示
     with st.container():
@@ -506,7 +487,7 @@ def show_satisfaction():
                     button_type = "primary" if is_selected else "secondary"
                     
                     # ボタンをクリックしたときの処理
-                    if st.button(button_label, key=f"btn_sat_{q_key}_{i}_{st.session_state.key_prefix}", type=button_type):
+                    if st.button(button_label, key=f"btn_sat_{q_key}_{i}", type=button_type):
                         st.session_state.responses[f"satisfaction_{q_key}"] = i
                         st.rerun()
             
@@ -518,19 +499,87 @@ def show_satisfaction():
             
             st.markdown("<hr>", unsafe_allow_html=True)
     
-    # 送信ボタン
-    if st.button("回答を送信する", type="primary", key=f"submit_button_sat_{st.session_state.key_prefix}"):
-        # 全ての質問に回答されているか確認
-        all_answered = True
-        for category, questions in EXPECTATION_SATISFACTION_CATEGORIES.items():
-            for q_key in questions.keys():
-                if f"satisfaction_{q_key}" not in st.session_state.responses:
-                    all_answered = False
-                    break
-            if not all_answered:
-                break
+    # 次へ進むボタン
+    if st.button("次へ進む", type="primary", key="next_button_sat"):
+        st.session_state.current_page = 7
+        st.rerun()
+
+# 満足していない項目の理由ページ
+def show_low_satisfaction_reason():
+    scroll_to_top()
+    st.title("満足していない項目について")
+    
+    # 満足していない項目（1または2を選択した項目）を抽出
+    low_satisfaction_items = []
+    
+    for category, questions in EXPECTATION_SATISFACTION_CATEGORIES.items():
+        for q_key, question in questions.items():
+            response_key = f"satisfaction_{q_key}"
+            if response_key in st.session_state.responses:
+                if st.session_state.responses[response_key] in [1, 2]:  # 1:満足していない, 2:どちらかと言えば満足していない
+                    low_satisfaction_items.append({
+                        "category": category,
+                        "key": q_key,
+                        "question": question,
+                        "rating": st.session_state.responses[response_key]
+                    })
+    
+    if not low_satisfaction_items:
+        st.info("「満足していない」または「どちらかと言えば満足していない」と回答した項目はありませんでした。")
+        if st.button("次へ進む", type="primary"):
+            st.session_state.current_page = 8
+            st.rerun()
+    else:
+        st.markdown("あなたが「満足していない」または「どちらかと言えば満足していない」と回答した項目があります。その中から1つ選び、理由をお聞かせください。")
         
-        if all_answered:
+        # 項目の選択
+        options = [f"{item['category']} - {item['question']} ({rating_options_5[item['rating']-1]})" for item in low_satisfaction_items]
+        selected_option = st.selectbox("項目を選択してください", options)
+        
+        # 選択された項目のインデックスを取得
+        selected_index = options.index(selected_option)
+        selected_item = low_satisfaction_items[selected_index]
+        
+        # 理由の入力
+        reason = st.text_area(
+            f"「{selected_item['question']}」について、なぜ「{rating_options_5[selected_item['rating']-1]}」と回答されたのか、理由をお聞かせください。",
+            height=150
+        )
+        
+        # 次へ進むボタン
+        if st.button("次へ進む", type="primary"):
+            # 回答を保存
+            st.session_state.responses[f"low_satisfaction_item"] = f"{selected_item['category']} - {selected_item['question']}"
+            st.session_state.responses[f"low_satisfaction_rating"] = rating_options_5[selected_item['rating']-1]
+            st.session_state.responses[f"low_satisfaction_reason"] = reason
+            
+            # 次のページへ
+            st.session_state.current_page = 8
+            st.rerun()
+
+# 満足している項目の理由ページ
+def show_high_satisfaction_reason():
+    scroll_to_top()
+    st.title("満足している項目について")
+    
+    # 満足している項目（4または5を選択した項目）を抽出
+    high_satisfaction_items = []
+    
+    for category, questions in EXPECTATION_SATISFACTION_CATEGORIES.items():
+        for q_key, question in questions.items():
+            response_key = f"satisfaction_{q_key}"
+            if response_key in st.session_state.responses:
+                if st.session_state.responses[response_key] in [4, 5]:  # 4:どちらかと言えば満足している, 5:満足している
+                    high_satisfaction_items.append({
+                        "category": category,
+                        "key": q_key,
+                        "question": question,
+                        "rating": st.session_state.responses[response_key]
+                    })
+    
+    if not high_satisfaction_items:
+        st.info("「どちらかと言えば満足している」または「満足している」と回答した項目はありませんでした。")
+        if st.button("回答を送信する", type="primary"):
             # タイムスタンプを追加
             st.session_state.responses['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             
@@ -538,27 +587,55 @@ def show_satisfaction():
             save_data(st.session_state.responses)
             
             # サンキューページへ
-            change_page(6)
-        else:
-            st.session_state.error_message = "すべての質問に回答してください。"
+            st.session_state.current_page = 9
+            st.rerun()
+    else:
+        st.markdown("あなたが「どちらかと言えば満足している」または「満足している」と回答した項目があります。その中から1つ選び、理由をお聞かせください。")
+        
+        # 項目の選択
+        options = [f"{item['category']} - {item['question']} ({rating_options_5[item['rating']-1]})" for item in high_satisfaction_items]
+        selected_option = st.selectbox("項目を選択してください", options)
+        
+        # 選択された項目のインデックスを取得
+        selected_index = options.index(selected_option)
+        selected_item = high_satisfaction_items[selected_index]
+        
+        # 理由の入力
+        reason = st.text_area(
+            f"「{selected_item['question']}」について、なぜ「{rating_options_5[selected_item['rating']-1]}」と回答されたのか、理由をお聞かせください。",
+            height=150
+        )
+        
+        # 送信ボタン
+        if st.button("回答を送信する", type="primary"):
+            # 回答を保存
+            st.session_state.responses[f"high_satisfaction_item"] = f"{selected_item['category']} - {selected_item['question']}"
+            st.session_state.responses[f"high_satisfaction_rating"] = rating_options_5[selected_item['rating']-1]
+            st.session_state.responses[f"high_satisfaction_reason"] = reason
+            
+            # タイムスタンプを追加
+            st.session_state.responses['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            # データを保存
+            save_data(st.session_state.responses)
+            
+            # サンキューページへ
+            st.session_state.current_page = 9
             st.rerun()
 
 # サンキューページ
 def show_thank_you():
-    # 最初に空のコンテナを表示（これにより画面の一番上に表示される）
-    st.container()
-    
+    scroll_to_top()
     st.title("ご回答ありがとうございました")
     st.markdown("""
     アンケートへのご協力ありがとうございました。
     いただいた回答は、より良い職場環境づくりのために活用させていただきます。
     """)
     
-    if st.button("新しいアンケートを開始", type="primary", key=f"restart_{st.session_state.key_prefix}"):
+    if st.button("新しいアンケートを開始", type="primary"):
         # セッション状態をリセット
         st.session_state.responses = {}
         st.session_state.current_page = 1
-        st.session_state.key_prefix += 1
         st.rerun()
 
 # メインアプリケーション
@@ -612,11 +689,6 @@ def main():
         background-color: #1E88E5;
     }
     
-    /* エラーメッセージのスタイル */
-    .stAlert {
-        margin-bottom: 20px;
-    }
-    
     /* モバイル対応 */
     @media (max-width: 768px) {
         .stButton button {
@@ -628,10 +700,10 @@ def main():
     """, unsafe_allow_html=True)
     
     # プログレスバーの表示（ページ1は除く）
-    if st.session_state.current_page > 1 and st.session_state.current_page < 6:
-        progress_value = (st.session_state.current_page - 1) / 5
+    if st.session_state.current_page > 1 and st.session_state.current_page < 9:
+        progress_value = (st.session_state.current_page - 1) / 8
         st.progress(progress_value)
-        st.write(f"ページ {st.session_state.current_page - 1}/5")
+        st.write(f"ページ {st.session_state.current_page - 1}/8")
     
     # ページ表示
     if st.session_state.current_page == 1:
@@ -643,8 +715,14 @@ def main():
     elif st.session_state.current_page == 4:
         show_expectation()
     elif st.session_state.current_page == 5:
-        show_satisfaction()
+        show_low_expectation_reason()
     elif st.session_state.current_page == 6:
+        show_satisfaction()
+    elif st.session_state.current_page == 7:
+        show_low_satisfaction_reason()
+    elif st.session_state.current_page == 8:
+        show_high_satisfaction_reason()
+    elif st.session_state.current_page == 9:
         show_thank_you()
 
 if __name__ == "__main__":
